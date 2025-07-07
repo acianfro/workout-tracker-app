@@ -4,12 +4,13 @@ import { getAuth } from 'firebase/auth';
 
 // Replace these with your actual Firebase config values
 const firebaseConfig = {
-  apiKey: "AIzaSyC...", // Your actual API key from Firebase
-  authDomain: "your-project-id.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project-id.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abc123def456"
+  apiKey: "AIzaSyCC0uuELp95mO6oD7fLVYtseBYdRKzrSr8",
+  authDomain: "workout-tracker-app-3f74c.firebaseapp.com",
+  projectId: "workout-tracker-app-3f74c",
+  storageBucket: "workout-tracker-app-3f74c.firebasestorage.app",
+  messagingSenderId: "645811369612",
+  appId: "1:645811369612:web:23c19fb72573653dee2da9",
+  measurementId: "G-NGJXYJTSKB"
 };
 
 // Initialize Firebase
