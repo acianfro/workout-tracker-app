@@ -114,21 +114,29 @@ async function updateUserProfile(profileData) {
   }
 }
 
-  async function addMeasurement(measurementData) {
-    if (!currentUser) return;
+async function addMeasurement(measurementData) {
+  if (!currentUser) return;
 
-    try {
-      const docRef = await addDoc(collection(db, 'measurements'), {
-        ...measurementData,
-        userId: currentUser.uid,
-        createdAt: new Date()
-      });
-      return docRef.id;
-    } catch (error) {
-      console.error('Error adding measurement:', error);
-      throw error;
-    }
+  try {
+    // Ensure all required fields are present
+    const dataToSave = {
+      ...measurementData,
+      userId: currentUser.uid,
+      createdAt: new Date(),
+      // Convert date to Firestore timestamp if it's a string
+      date: measurementData.date instanceof Date ? measurementData.date : new Date(measurementData.date)
+    };
+    
+    console.log('Saving measurement data:', dataToSave); // Debug log
+    
+    const docRef = await addDoc(collection(db, 'measurements'), dataToSave);
+    console.log('Measurement saved with ID:', docRef.id); // Debug log
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding measurement:', error);
+    throw error;
   }
+}
 
   async function saveWorkout(workoutData) {
     if (!currentUser) return;
