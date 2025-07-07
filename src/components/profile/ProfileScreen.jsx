@@ -37,19 +37,25 @@ export default function ProfileScreen() {
     notes: ''
   });
 
-  useEffect(() => {
-    if (userProfile) {
-      setProfileData({
-        name: userProfile.name || '',
-        dateOfBirth: userProfile.dateOfBirth || '',
-        height: userProfile.height || '',
-        targetWeight: userProfile.targetWeight || '',
-        targetBodyFat: userProfile.targetBodyFat || ''
-      });
-    } else {
-      setShowProfileForm(true);
-    }
-  }, [userProfile]);
+useEffect(() => {
+  if (userProfile && userProfile.name) {
+    // Profile exists and has required data - show dashboard
+    setProfileData({
+      name: userProfile.name || '',
+      dateOfBirth: userProfile.dateOfBirth || '',
+      height: userProfile.height || '',
+      targetWeight: userProfile.targetWeight || '',
+      targetBodyFat: userProfile.targetBodyFat || ''
+    });
+    setShowProfileForm(false);
+  } else if (userProfile === null) {
+    // Still loading - don't show form yet
+    return;
+  } else {
+    // No profile found or incomplete profile - show setup form
+    setShowProfileForm(true);
+  }
+}, [userProfile]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
