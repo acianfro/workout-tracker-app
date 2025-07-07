@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   collection, 
   doc, 
-  setDoc,  // Add this
+  setDoc,
+  getDoc,  // Add this
   getDocs, 
   addDoc, 
   query, 
