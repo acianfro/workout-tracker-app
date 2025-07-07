@@ -101,17 +101,18 @@ export function UserDataProvider({ children }) {
     });
   }
 
-  async function updateUserProfile(profileData) {
-    if (!currentUser) return;
+async function updateUserProfile(profileData) {
+  if (!currentUser) return;
 
-    try {
-      await updateDoc(doc(db, 'users', currentUser.uid), profileData);
-      setUserProfile(prev => ({ ...prev, ...profileData }));
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
-    }
+  try {
+    // Use setDoc with merge: true to create or update the document
+    await setDoc(doc(db, 'users', currentUser.uid), profileData, { merge: true });
+    setUserProfile(prev => ({ ...prev, ...profileData }));
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    throw error;
   }
+}
 
   async function addMeasurement(measurementData) {
     if (!currentUser) return;
