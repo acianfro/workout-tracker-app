@@ -45,15 +45,21 @@ export function UserDataProvider({ children }) {
     
     setLoading(true);
     try {
-      // Load user profile
-      const profileQuery = query(
-        collection(db, 'users'),
-        where('__name__', '==', currentUser.uid)
-      );
-      const profileSnapshot = await getDocs(profileQuery);
-      if (!profileSnapshot.empty) {
-        setUserProfile({ id: currentUser.uid, ...profileSnapshot.docs[0].data() });
-      }
+// Load user profile using direct document reference
+try {
+  const userDocRef = doc(db, 'users', currentUser.uid);
+  const userDocSnap = await getDoc(userDocRef);
+  
+  if (userDocSnap.exists()) {
+    setUserProfile({ id: currentUser.uid, ...userDocSnap.data() });
+  } else {
+    console.log('No user profile found');
+    setUserProfile({}); // Empty object indicates no profile exists
+  }
+} catch (error) {
+  console.error('Error loading user profile:', error);
+  setUserProfile({});
+}
 
       // Set up real-time listeners
       setupMeasurementsListener();
