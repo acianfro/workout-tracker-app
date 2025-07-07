@@ -261,6 +261,7 @@ export default function PlanScreen() {
           <option value="chest">Chest</option>
           <option value="bicepstriceps">Biceps/Triceps</option>
           <option value="back">Back</option>
+          <option value="cardio">Cardio</option>
         </select>
         
         <div className="text-sm text-secondary-600 mb-3">Motivation Level</div>
