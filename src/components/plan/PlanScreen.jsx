@@ -30,7 +30,7 @@ const EXERCISE_CATEGORIES = [
 ];
 
 export default function PlanScreen() {
-  const { setCurrentWorkout, deleteExercise } = useUserData();
+  const { setCurrentWorkout, deleteExercise, saveScheduledWorkout } = useUserData();
   const navigate = useNavigate();
   const [workoutPlan, setWorkoutPlan] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -47,6 +47,7 @@ export default function PlanScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingExerciseId, setEditingExerciseId] = useState(null);
   const [selectedExercises, setSelectedExercises] = useState([]); // For multi-select
+  const [showScheduleOptions, setShowScheduleOptions] = useState(false);
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
@@ -286,6 +287,42 @@ export default function PlanScreen() {
       status: 'active'
     });
     navigate('/workout');
+  };
+
+  const scheduleWorkout = async () => {
+    if (workoutPlan.exercises.length === 0) {
+      alert('Please add at least one exercise to schedule a workout.');
+      return;
+    }
+
+    try {
+      const workoutDate = new Date(workoutPlan.date + 'T12:00:00');
+      
+      const scheduledWorkoutData = {
+        ...workoutPlan,
+        date: workoutDate,
+        scheduledFor: workoutDate
+      };
+
+      await saveScheduledWorkout(scheduledWorkoutData);
+      
+      alert(`Workout scheduled for ${format(workoutDate, 'MMMM d, yyyy')}!`);
+      
+      // Reset the form for next workout
+      setWorkoutPlan({
+        date: format(new Date(), 'yyyy-MM-dd'),
+        type: 'hypertrophy',
+        focusArea: 'Pull',
+        motivation: 7,
+        notes: '',
+        exercises: []
+      });
+      
+      setShowScheduleOptions(false);
+    } catch (error) {
+      console.error('Error scheduling workout:', error);
+      alert('Error scheduling workout: ' + error.message);
+    }
   };
 
   // Filter exercises based on search term
@@ -813,10 +850,71 @@ export default function PlanScreen() {
             ))}
           </div>
           
-          <Button onClick={startWorkout} className="w-full mt-4">
-            Start Workout
-          </Button>
+          <div className="flex gap-3 mt-4">
+            <Button onClick={startWorkout} className="flex-1">
+              Start Now
+            </Button>
+            <Button 
+              onClick={() => setShowScheduleOptions(true)}
+              variant="secondary" 
+              className="flex-1"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Schedule
+            </Button>
+          </div>
         </Card>
+      )}
+
+      {/* Schedule Options Modal */}
+      {showScheduleOptions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <Card className="p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-secondary-900">Schedule Workout</h3>
+              <button
+                onClick={() => setShowScheduleOptions(false)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm text-secondary-600 mb-2 block">Workout Date</label>
+                <Input
+                  type="date"
+                  value={workoutPlan.date}
+                  onChange={(e) => setWorkoutPlan(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+              
+              <div className="bg-primary-50 p-4 rounded-lg">
+                <h4 className="font-medium text-secondary-900 mb-2">Workout Summary</h4>
+                <div className="text-sm text-secondary-600">
+                  <div>Type: <span className="capitalize">{workoutPlan.type}</span></div>
+                  <div>Focus: {workoutPlan.focusArea}</div>
+                  <div>Exercises: {workoutPlan.exercises.length}</div>
+                  <div>Date: {format(new Date(workoutPlan.date), 'MMMM d, yyyy')}</div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <Button onClick={scheduleWorkout} className="flex-1">
+                  Schedule Workout
+                </Button>
+                <Button 
+                  onClick={() => setShowScheduleOptions(false)}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
