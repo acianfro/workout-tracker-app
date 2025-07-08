@@ -50,7 +50,7 @@ function App() {
                     <Route path="/plan" element={<PlanScreen />} />
                     <Route path="/workout" element={<WorkoutScreen />} />
                     <Route path="/progress" element={<ProgressScreen />} />
-                     <Route path="/schedule" element={<ScheduledWorkoutsScreen/>} />
+                     <Route path="/scheduled" element={<ScheduledWorkoutsScreen/>} />
                   </Routes>
                 </div>
                 <Navigation />
