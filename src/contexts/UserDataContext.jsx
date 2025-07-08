@@ -261,6 +261,7 @@ async function deleteWorkout(workoutId) {
     deleteMeasurement,
     saveWorkout,
     updateWorkout,
+    deleteWorkout,
     setCurrentWorkout,
     calculateAge,
     getLatestMeasurement,
