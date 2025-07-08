@@ -6,7 +6,7 @@ import Input from '../ui/Input';
 import Card from '../ui/Card';
 import { Clock, Check, Edit, Plus, Minus, X, Search } from 'lucide-react';
 import { format, differenceInMinutes, differenceInSeconds } from 'date-fns';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 export default function WorkoutScreen() {
