@@ -243,6 +243,7 @@ function calculateTotalWeight(exercises) {
     }
     
     return total + exercise.sets.reduce((setTotal, set) => {
+      // Use actual values first, then fall back to planned values
       const weight = parseFloat(set.actualWeight || set.weight) || 0;
       const reps = parseInt(set.actualReps || set.reps) || 0;
       return setTotal + (weight * reps);
