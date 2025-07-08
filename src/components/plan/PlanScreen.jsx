@@ -146,17 +146,16 @@ export default function PlanScreen() {
       category: exercise.category,
       focusAreas: exercise.focusAreas,
       isCardio: isCardio,
+      exerciseId: exercise.id, // Reference to original exercise for editing
       sets: isCardio ? [
-        // Cardio structure
-        { 
-          distance: '', 
-          floorsClimbed: '', 
-          weightedVest: '', 
-          duration: '', 
-          completed: false 
-        }
+        // Cardio structure - 4 default sets
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false }
       ] : [
-        // Regular exercise structure
+        // Regular exercise structure - 4 default sets
+        { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false }
@@ -338,11 +337,24 @@ export default function PlanScreen() {
             {filteredExercises.map((exercise, index) => (
               <div key={exercise.id || index} className="border-2 border-secondary-200 rounded-lg bg-white p-3">
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
+                  <div 
+                    className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                    onClick={() => {
+                      setNewExercise({
+                        name: exercise.name,
+                        category: exercise.category,
+                        focusAreas: exercise.focusAreas || [workoutPlan.focusArea],
+                        description: exercise.description || '',
+                        instructions: exercise.instructions || ''
+                      });
+                      setShowAddNewExercise(true);
+                    }}
+                  >
                     <div className="font-medium text-secondary-900">{exercise.name}</div>
                     <div className="text-xs text-secondary-500 capitalize">
                       {exercise.category}
                       {exercise.isCustom && ' • Custom'}
+                      <span className="text-primary-600 ml-2">• Click to edit</span>
                     </div>
                     <div className="flex flex-wrap gap-1 mt-2">
                       {exercise.focusAreas?.map(area => (
