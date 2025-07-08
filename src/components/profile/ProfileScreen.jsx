@@ -41,19 +41,27 @@ export default function ProfileScreen() {
     notes: ''
   });
 
-  useEffect(() => {
-    if (userProfile) {
-      setProfileData({
-        name: userProfile.name || '',
-        dateOfBirth: userProfile.dateOfBirth || '',
-        height: userProfile.height || '',
-        targetWeight: userProfile.targetWeight || '',
-        targetBodyFat: userProfile.targetBodyFat || ''
-      });
-    } else {
-      setShowProfileForm(true);
-    }
-  }, [userProfile]);
+useEffect(() => {
+  console.log('UserProfile changed:', userProfile);
+  
+  if (userProfile && userProfile.name) {
+    // Profile exists and has required data - show dashboard
+    console.log('Showing dashboard for existing profile');
+    setProfileData({
+      name: userProfile.name || '',
+      dateOfBirth: userProfile.dateOfBirth || '',
+      height: userProfile.height || '',
+      targetWeight: userProfile.targetWeight || '',
+      targetBodyFat: userProfile.targetBodyFat || ''
+    });
+    setShowProfileForm(false);
+  } else if (userProfile === null) {
+    // Explicitly no profile found - show setup form
+    console.log('No profile found, showing setup form');
+    setShowProfileForm(true);
+  }
+  // If userProfile is undefined, still loading
+}, [userProfile]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
