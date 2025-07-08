@@ -11,7 +11,7 @@ import PlanScreen from './components/plan/PlanScreen';
 import WorkoutScreen from './components/workout/WorkoutScreen';
 import ProgressScreen from './components/progress/ProgressScreen';
 import LoadingSpinner from './components/ui/LoadingSpinner';
-import ScheduledWorkoutsScreen from './components/plan/ScheduledWorkoutsScreen';
+import ScheduledWorkoutsScreen from './components/scheduled/ScheduledWorkoutsScreen';
 
 // Context
 import { AuthProvider } from './contexts/AuthContext';
