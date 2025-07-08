@@ -12,45 +12,28 @@ import { db } from '../../firebase/config';
 // Default exercise database (fallback)
 const DEFAULT_EXERCISES = {
   push: [
-    { name: 'Barbell Bench Press', category: 'compound', focusArea: 'push' },
+    { name: 'Bench Press', category: 'compound', focusArea: 'push' },
     { name: 'Push-ups', category: 'bodyweight', focusArea: 'push' },
+    { name: 'Overhead Press', category: 'compound', focusArea: 'push' },
     { name: 'Dumbbell Press', category: 'isolation', focusArea: 'push' },
     { name: 'Tricep Dips', category: 'bodyweight', focusArea: 'push' },
     { name: 'Lateral Raises', category: 'isolation', focusArea: 'push' }
   ],
   pull: [
     { name: 'Pull-ups', category: 'bodyweight', focusArea: 'pull' },
-    { name: 'Cable Lat Pulldown', category: 'compound', focusArea: 'pull' },
-    { name: 'Dumbbell Bentover Rows', category: 'compound', focusArea: 'pull' },
-    { name: 'Seated Cable Rows', category: 'compound', focusArea: 'pull' },
+    { name: 'Lat Pulldown', category: 'compound', focusArea: 'pull' },
+    { name: 'Barbell Rows', category: 'compound', focusArea: 'pull' },
+    { name: 'Cable Rows', category: 'compound', focusArea: 'pull' },
     { name: 'Face Pulls', category: 'isolation', focusArea: 'pull' },
     { name: 'Bicep Curls', category: 'isolation', focusArea: 'pull' }
   ],
   legs: [
-    { name: 'Barbell Squat', category: 'compound', focusArea: 'legs' },
-    { name: 'Goblet Squat', category: 'compound', focusArea: 'legs' },
+    { name: 'Squat', category: 'compound', focusArea: 'legs' },
     { name: 'Deadlift', category: 'compound', focusArea: 'legs' },
-    { name: 'Sumo Deadlift', category: 'compound', focusArea: 'legs' },
-    { name: 'RDL', category: 'compound', focusArea: 'legs' },
     { name: 'Leg Press', category: 'compound', focusArea: 'legs' },
-    { name: 'Dumbbell Walking Lunges', category: 'bodyweight', focusArea: 'legs' },
-    { name: 'Hack Squat', category: 'compound', focusArea: 'legs' },
+    { name: 'Lunges', category: 'bodyweight', focusArea: 'legs' },
+    { name: 'Calf Raises', category: 'isolation', focusArea: 'legs' },
     { name: 'Leg Curls', category: 'isolation', focusArea: 'legs' }
-  ],
-    Shoulders: [
-    { name: 'Dumbbell Shoulder Press', category: 'compound', focusArea: 'shoulders' }
-  ],
-    Bicep/Tricep: [
-    { name: 'Dumbbell Bicep Curl', category: 'isolation', focusArea: 'biceptricep' }
-  ],
-    Chest: [
-   { name: 'Barbell Bench Press', category: 'compound', focusArea: 'chest' }
-  ],
-    Back: [
-   { name: 'Pull-Ups', category: 'compound', focusArea: 'back' }
-  ],
-    Cardio: [
-   { name: 'Run', category: 'cardio', focusArea: 'cardio' }
   ]
 };
 
