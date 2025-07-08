@@ -41,27 +41,43 @@ export default function ProfileScreen() {
     notes: ''
   });
 
-useEffect(() => {
-  console.log('UserProfile changed:', userProfile);
-  
-  if (userProfile && userProfile.name) {
-    // Profile exists and has required data - show dashboard
-    console.log('Showing dashboard for existing profile');
-    setProfileData({
-      name: userProfile.name || '',
-      dateOfBirth: userProfile.dateOfBirth || '',
-      height: userProfile.height || '',
-      targetWeight: userProfile.targetWeight || '',
-      targetBodyFat: userProfile.targetBodyFat || ''
-    });
-    setShowProfileForm(false);
-  } else if (userProfile === null) {
-    // Explicitly no profile found - show setup form
-    console.log('No profile found, showing setup form');
-    setShowProfileForm(true);
-  }
-  // If userProfile is undefined, still loading
-}, [userProfile]);
+  // Helper function to format dates correctly (avoiding timezone issues)
+  const formatMeasurementDate = (date) => {
+    try {
+      let measurementDate;
+      
+      if (date?.toDate) {
+        // Firestore timestamp
+        measurementDate = date.toDate();
+      } else if (date instanceof Date) {
+        // Regular Date object
+        measurementDate = date;
+      } else {
+        // String date
+        measurementDate = new Date(date);
+      }
+      
+      // Format the date in local timezone
+      return format(measurementDate, 'MMM d, yyyy');
+    } catch (error) {
+      console.error('Error formatting measurement date:', error);
+      return 'Unknown date';
+    }
+  };
+
+  useEffect(() => {
+    if (userProfile) {
+      setProfileData({
+        name: userProfile.name || '',
+        dateOfBirth: userProfile.dateOfBirth || '',
+        height: userProfile.height || '',
+        targetWeight: userProfile.targetWeight || '',
+        targetBodyFat: userProfile.targetBodyFat || ''
+      });
+    } else {
+      setShowProfileForm(true);
+    }
+  }, [userProfile]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -76,8 +92,11 @@ useEffect(() => {
   const handleMeasurementSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Create a proper date object with noon time to avoid timezone issues
+      const measurementDate = new Date(measurementData.date + 'T12:00:00');
+      
       const dataToSave = {
-        date: new Date(measurementData.date),
+        date: measurementDate, // Use the corrected date
         ...Object.fromEntries(
           Object.entries(measurementData)
             .filter(([key, value]) => key !== 'date' && value !== '')
@@ -103,8 +122,19 @@ useEffect(() => {
 
   const handleEditMeasurement = (measurement) => {
     setEditingMeasurement(measurement.id);
+    
+    // Create proper date string for input
+    let dateString;
+    try {
+      const measurementDate = measurement.date?.toDate ? measurement.date.toDate() : new Date(measurement.date);
+      dateString = format(measurementDate, 'yyyy-MM-dd');
+    } catch (error) {
+      console.error('Error formatting date for edit:', error);
+      dateString = format(new Date(), 'yyyy-MM-dd');
+    }
+    
     setEditMeasurementData({
-      date: format(measurement.date.toDate(), 'yyyy-MM-dd'),
+      date: dateString,
       weight: measurement.weight?.toString() || '',
       bodyFat: measurement.bodyFat?.toString() || '',
       muscleMass: measurement.muscleMass?.toString() || '',
@@ -116,8 +146,11 @@ useEffect(() => {
 
   const handleUpdateMeasurement = async (measurementId) => {
     try {
+      // Create a proper date object with noon time to avoid timezone issues
+      const measurementDate = new Date(editMeasurementData.date + 'T12:00:00');
+      
       const dataToUpdate = {
-        date: new Date(editMeasurementData.date),
+        date: measurementDate, // Use the corrected date
         ...Object.fromEntries(
           Object.entries(editMeasurementData)
             .filter(([key, value]) => key !== 'date' && value !== '')
@@ -319,7 +352,7 @@ useEffect(() => {
         
         {latestWeight && (
           <div className="text-sm text-secondary-600 mt-4">
-            Latest: {format(latestWeight.date.toDate(), 'MMM d, yyyy')}
+            Latest: {formatMeasurementDate(latestWeight.date)}
           </div>
         )}
         
@@ -431,7 +464,7 @@ useEffect(() => {
                         {measurement.bodyFat && `${measurement.bodyFat}% BF`}
                       </div>
                       <div className="text-sm text-secondary-600">
-                        {format(measurement.date.toDate(), 'MMM d, yyyy')} • {measurement.source}
+                        {formatMeasurementDate(measurement.date)} • {measurement.source}
                         {measurement.notes && ` • ${measurement.notes}`}
                       </div>
                     </div>
