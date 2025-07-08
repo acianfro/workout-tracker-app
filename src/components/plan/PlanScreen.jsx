@@ -12,28 +12,40 @@ import { db } from '../../firebase/config';
 // Default exercise database (fallback)
 const DEFAULT_EXERCISES = {
   push: [
-    { name: 'Bench Press', category: 'compound', focusArea: 'push' },
+    { name: 'Barbell Bench Press', category: 'compound', focusArea: 'push' },
     { name: 'Push-ups', category: 'bodyweight', focusArea: 'push' },
-    { name: 'Overhead Press', category: 'compound', focusArea: 'push' },
     { name: 'Dumbbell Press', category: 'isolation', focusArea: 'push' },
     { name: 'Tricep Dips', category: 'bodyweight', focusArea: 'push' },
     { name: 'Lateral Raises', category: 'isolation', focusArea: 'push' }
   ],
   pull: [
     { name: 'Pull-ups', category: 'bodyweight', focusArea: 'pull' },
-    { name: 'Lat Pulldown', category: 'compound', focusArea: 'pull' },
-    { name: 'Barbell Rows', category: 'compound', focusArea: 'pull' },
-    { name: 'Cable Rows', category: 'compound', focusArea: 'pull' },
+    { name: 'Cable Lat Pulldown', category: 'compound', focusArea: 'pull' },
+    { name: 'Dumbbell Bentover Rows', category: 'compound', focusArea: 'pull' },
+    { name: 'Seated Cable Rows', category: 'compound', focusArea: 'pull' },
     { name: 'Face Pulls', category: 'isolation', focusArea: 'pull' },
     { name: 'Bicep Curls', category: 'isolation', focusArea: 'pull' }
   ],
   legs: [
-    { name: 'Squat', category: 'compound', focusArea: 'legs' },
+    { name: 'Barbell Squat', category: 'compound', focusArea: 'legs' },
+    { name: 'Goblet Squat', category: 'compound', focusArea: 'legs' },
     { name: 'Deadlift', category: 'compound', focusArea: 'legs' },
+    { name: 'Sumo Deadlift', category: 'compound', focusArea: 'legs' },
+    { name: 'RDL', category: 'compound', focusArea: 'legs' },
     { name: 'Leg Press', category: 'compound', focusArea: 'legs' },
-    { name: 'Lunges', category: 'bodyweight', focusArea: 'legs' },
-    { name: 'Calf Raises', category: 'isolation', focusArea: 'legs' },
+    { name: 'Dumbbell Walking Lunges', category: 'bodyweight', focusArea: 'legs' },
+    { name: 'Hack Squat', category: 'compound', focusArea: 'legs' },
     { name: 'Leg Curls', category: 'isolation', focusArea: 'legs' }
+  ],
+    Shoulders: [
+  ],
+    Bicep/Tricep: [
+  ],
+    Chest: [
+  ],
+    Back: [
+  ],
+    Cardio: [
   ]
 };
 
@@ -252,9 +264,15 @@ export default function PlanScreen() {
                 value={newExercise.focusArea}
                 onChange={(e) => setNewExercise(prev => ({ ...prev, focusArea: e.target.value }))}
               >
-                <option value="push">Push (Chest, Shoulders, Triceps)</option>
+                <option value="push">Push (Chest, Triceps)</option>
                 <option value="pull">Pull (Back, Biceps)</option>
                 <option value="legs">Legs (Quads, Hamstrings, Glutes, Calves)</option>
+                <option value="shoulders">Shoulders </option>
+                <option value="chest">Chest </option>
+                <option value="back">Back </option>
+                <option value="biceptricep">Bicep/Tricep </option>
+                <option value="cardio">Cardio </option>
+                
               </select>
             </div>
             
@@ -456,6 +474,12 @@ export default function PlanScreen() {
           <option value="pull">Pull</option>
           <option value="push">Push</option>
           <option value="legs">Legs</option>
+          <option value="shoulders">Shoulders</option>
+          <option value="chest">Chest</option>
+          <option value="back">Back</option>
+          <option value="bicepstriceps">Biceps/Triceps</option>
+          <option value="cardio">Cardio</option>
+          
         </select>
         
         <div className="text-sm text-secondary-600 mb-3">Motivation Level</div>
