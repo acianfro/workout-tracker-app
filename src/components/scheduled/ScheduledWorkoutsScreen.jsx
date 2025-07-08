@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import { Calendar, Clock, Play, Trash2, Edit } from 'lucide-react';
-import { format, isToday, isTomorrow, isThisWeek, isPast } from 'date-fns';
+import { format } from 'date-fns';
 
 export default function ScheduledWorkoutsScreen() {
   const { 
@@ -56,27 +56,66 @@ export default function ScheduledWorkoutsScreen() {
   };
 
   const getDateLabel = (date) => {
-    const workoutDate = date?.toDate ? date.toDate() : new Date(date);
+    let workoutDate;
+    if (date?.toDate) {
+      workoutDate = date.toDate();
+    } else if (date instanceof Date) {
+      workoutDate = date;
+    } else {
+      workoutDate = new Date(date);
+    }
     
-    if (isToday(workoutDate)) return 'Today';
-    if (isTomorrow(workoutDate)) return 'Tomorrow';
-    if (isPast(workoutDate)) return 'Past Due';
-    if (isThisWeek(workoutDate)) return format(workoutDate, 'EEEE'); // Monday, Tuesday, etc.
+    // Create comparison dates at start of day in local timezone
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const workoutDateStart = new Date(workoutDate);
+    workoutDateStart.setHours(0, 0, 0, 0);
+    
+    if (workoutDateStart.getTime() === today.getTime()) return 'Today';
+    if (workoutDateStart.getTime() === tomorrow.getTime()) return 'Tomorrow';
+    if (workoutDateStart < today) return 'Past Due';
+    
+    const diffTime = workoutDateStart - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 7) return format(workoutDate, 'EEEE'); // Monday, Tuesday, etc.
     return format(workoutDate, 'MMM d, yyyy');
   };
 
   const getDateColor = (date) => {
-    const workoutDate = date?.toDate ? date.toDate() : new Date(date);
+    let workoutDate;
+    if (date?.toDate) {
+      workoutDate = date.toDate();
+    } else if (date instanceof Date) {
+      workoutDate = date;
+    } else {
+      workoutDate = new Date(date);
+    }
     
-    if (isToday(workoutDate)) return 'text-green-600 bg-green-100';
-    if (isTomorrow(workoutDate)) return 'text-blue-600 bg-blue-100';
-    if (isPast(workoutDate)) return 'text-red-600 bg-red-100';
+    // Create comparison dates at start of day in local timezone
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const workoutDateStart = new Date(workoutDate);
+    workoutDateStart.setHours(0, 0, 0, 0);
+    
+    if (workoutDateStart.getTime() === today.getTime()) return 'text-green-600 bg-green-100';
+    if (workoutDateStart.getTime() === tomorrow.getTime()) return 'text-blue-600 bg-blue-100';
+    if (workoutDateStart < today) return 'text-red-600 bg-red-100';
     return 'text-secondary-600 bg-secondary-100';
   };
 
   // Group workouts by date
   const groupedWorkouts = scheduledWorkouts.reduce((groups, workout) => {
-    const dateKey = format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'yyyy-MM-dd');
+    const workoutDate = workout.date?.toDate ? workout.date.toDate() : new Date(workout.date);
+    const dateKey = format(workoutDate, 'yyyy-MM-dd');
     if (!groups[dateKey]) {
       groups[dateKey] = [];
     }
