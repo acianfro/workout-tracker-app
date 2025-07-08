@@ -42,6 +42,8 @@ export default function PlanScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingExerciseId, setEditingExerciseId] = useState(null);
   const [selectedExercises, setSelectedExercises] = useState([]);
+  const [selectedForSuperset, setSelectedForSuperset] = useState([]);
+  const [supersetName, setSupersetName] = useState('');
   const [showScheduleOptions, setShowScheduleOptions] = useState(false);
   const [newExercise, setNewExercise] = useState({
     name: '',
@@ -449,7 +451,11 @@ export default function PlanScreen() {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-secondary-900">Create Superset</h2>
             <button
-              onClick={() => setShowCreateSuperset(false)}
+              onClick={() => {
+                setShowCreateSuperset(false);
+                setSelectedForSuperset([]);
+                setSupersetName('');
+              }}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <X className="h-5 w-5" />
@@ -459,8 +465,8 @@ export default function PlanScreen() {
           <div className="space-y-4">
             <Input
               placeholder="Superset name (optional)"
-              value={selectedExercises.supersetName || ''}
-              onChange={(e) => setSelectedExercises(prev => ({ ...prev, supersetName: e.target.value }))}
+              value={supersetName}
+              onChange={(e) => setSupersetName(e.target.value)}
             />
 
             <div className="text-sm text-secondary-600 mb-3">
@@ -472,12 +478,12 @@ export default function PlanScreen() {
                 <div 
                   key={exercise.id}
                   className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
-                    selectedExercises.includes(exercise.id)
+                    selectedForSuperset.includes(exercise.id)
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-secondary-200 bg-white hover:border-primary-300'
                   }`}
                   onClick={() => {
-                    setSelectedExercises(prev => 
+                    setSelectedForSuperset(prev => 
                       prev.includes(exercise.id)
                         ? prev.filter(id => id !== exercise.id)
                         : [...prev, exercise.id]
@@ -487,7 +493,7 @@ export default function PlanScreen() {
                   <div className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={selectedExercises.includes(exercise.id)}
+                      checked={selectedForSuperset.includes(exercise.id)}
                       onChange={() => {}}
                       className="mr-3 w-4 h-4"
                     />
@@ -509,19 +515,21 @@ export default function PlanScreen() {
             <div className="flex gap-3 pt-4">
               <Button 
                 onClick={() => {
-                  createSuperset(selectedExercises, selectedExercises.supersetName);
-                  setSelectedExercises([]);
+                  createSuperset(selectedForSuperset, supersetName);
+                  setSelectedForSuperset([]);
+                  setSupersetName('');
                   setShowCreateSuperset(false);
                 }}
-                disabled={selectedExercises.length < 2}
+                disabled={selectedForSuperset.length < 2}
                 className="flex-1"
               >
-                Create Superset ({selectedExercises.length})
+                Create Superset ({selectedForSuperset.length})
               </Button>
               <Button 
                 variant="secondary"
                 onClick={() => {
-                  setSelectedExercises([]);
+                  setSelectedForSuperset([]);
+                  setSupersetName('');
                   setShowCreateSuperset(false);
                 }}
                 className="flex-1"
@@ -1138,7 +1146,8 @@ export default function PlanScreen() {
             <Button
               size="sm"
               onClick={() => {
-                setSelectedExercises([]);
+                setSelectedForSuperset([]);
+                setSupersetName('');
                 setShowCreateSuperset(true);
               }}
               disabled={availableForSuperset.length < 2}
