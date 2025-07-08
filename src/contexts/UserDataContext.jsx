@@ -3,7 +3,7 @@ import {
   collection, 
   doc, 
   setDoc,
-  getDoc,  // Add this
+  getDoc,
   getDocs, 
   addDoc, 
   query, 
@@ -42,36 +42,33 @@ export function UserDataProvider({ children }) {
     }
   }, [currentUser]);
 
-  async function loadUserData() {
-    if (!currentUser) return;
-    
-    setLoading(true);
-    try {
-// Load user profile using direct document reference
-try {
-  const userDocRef = doc(db, 'users', currentUser.uid);
-  const userDocSnap = await getDoc(userDocRef);
+async function loadUserData() {
+  if (!currentUser) return;
   
-  if (userDocSnap.exists()) {
-    setUserProfile({ id: currentUser.uid, ...userDocSnap.data() });
-  } else {
-    console.log('No user profile found');
-    setUserProfile({}); // Empty object indicates no profile exists
-  }
-} catch (error) {
-  console.error('Error loading user profile:', error);
-  setUserProfile({});
-}
-
-      // Set up real-time listeners
-      setupMeasurementsListener();
-      setupWorkoutsListener();
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    } finally {
-      setLoading(false);
+  setLoading(true);
+  try {
+    // Load user profile using direct document reference
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    const userDocSnap = await getDoc(userDocRef);
+    
+    if (userDocSnap.exists()) {
+      console.log('Profile found:', userDocSnap.data());
+      setUserProfile({ id: currentUser.uid, ...userDocSnap.data() });
+    } else {
+      console.log('No user profile found');
+      setUserProfile(null); // null indicates no profile exists
     }
+
+    // Set up real-time listeners
+    setupMeasurementsListener();
+    setupWorkoutsListener();
+  } catch (error) {
+    console.error('Error loading user data:', error);
+    setUserProfile(null);
+  } finally {
+    setLoading(false);
   }
+}
 
   function setupMeasurementsListener() {
     if (!currentUser) return;
