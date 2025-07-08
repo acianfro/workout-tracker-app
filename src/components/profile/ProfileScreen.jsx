@@ -17,7 +17,8 @@ export default function ProfileScreen() {
     updateMeasurement,
     deleteMeasurement,
     calculateAge,
-    getLatestMeasurement 
+    getLatestMeasurement,
+    loading 
   } = useUserData();
   
   const [showProfileForm, setShowProfileForm] = useState(false);
@@ -66,7 +67,16 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
+    console.log('ProfileScreen useEffect - userProfile:', userProfile);
+    console.log('ProfileScreen useEffect - loading:', loading);
+    
+    if (loading) {
+      // Still loading, don't make decisions yet
+      return;
+    }
+    
     if (userProfile) {
+      // Profile exists, populate form data and show dashboard
       setProfileData({
         name: userProfile.name || '',
         dateOfBirth: userProfile.dateOfBirth || '',
@@ -74,10 +84,13 @@ export default function ProfileScreen() {
         targetWeight: userProfile.targetWeight || '',
         targetBodyFat: userProfile.targetBodyFat || ''
       });
+      setShowProfileForm(false); // Ensure we show the dashboard
     } else {
+      // No profile found, show setup form
+      console.log('No profile found, showing setup form');
       setShowProfileForm(true);
     }
-  }, [userProfile]);
+  }, [userProfile, loading]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -86,6 +99,7 @@ export default function ProfileScreen() {
       setShowProfileForm(false);
     } catch (error) {
       console.error('Error updating profile:', error);
+      alert('Error updating profile: ' + error.message);
     }
   };
 
@@ -117,6 +131,7 @@ export default function ProfileScreen() {
       });
     } catch (error) {
       console.error('Error adding measurement:', error);
+      alert('Error adding measurement: ' + error.message);
     }
   };
 
@@ -183,6 +198,18 @@ export default function ProfileScreen() {
     setEditMeasurementData({});
   };
 
+  // Show loading state while we're determining if user has a profile
+  if (loading) {
+    return (
+      <div className="p-4 max-w-md mx-auto">
+        <Card className="p-6 text-center">
+          <div className="text-secondary-600">Loading profile...</div>
+        </Card>
+      </div>
+    );
+  }
+
+  // Force show profile setup form
   if (showProfileForm) {
     return (
       <div className="p-4 max-w-md mx-auto">
@@ -310,6 +337,7 @@ export default function ProfileScreen() {
     );
   }
 
+  // Main profile dashboard - only show if we have userProfile data or explicitly not loading
   const latestWeight = getLatestMeasurement('weight');
   const latestBodyFat = getLatestMeasurement('bodyFat');
   const age = calculateAge(userProfile?.dateOfBirth);
@@ -332,7 +360,7 @@ export default function ProfileScreen() {
         </div>
         
         <h2 className="text-lg font-bold text-secondary-900">
-          {userProfile?.name}{age && `, ${age} years old`}
+          {userProfile?.name || 'User'}{age && `, ${age} years old`}
         </h2>
         
         <div className="grid grid-cols-2 gap-4 mt-6">
