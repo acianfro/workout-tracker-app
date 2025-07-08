@@ -180,60 +180,106 @@ export default function WorkoutScreen() {
         </div>
       </Card>
 
-      {/* Current Exercise */}
-      <Card className="p-6">
-        <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
-          {currentExercise.name}
-        </h2>
-        
-        <div className="space-y-4">
-          {currentExercise.sets.map((set, setIndex) => (
-            <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
-              <div className="text-sm text-secondary-600 mb-2">
-                Set {setIndex + 1} - Planned: {set.weight || 'BW'} × {set.reps || '--'}
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <Input
-                  placeholder="Weight"
-                  value={set.actualWeight || ''}
-                  onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
-                  className="flex-1"
-                />
-                <Input
-                  placeholder="Reps"
-                  value={set.actualReps || ''}
-                  onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  variant={set.completed ? 'primary' : 'outline'}
-                  size="sm"
-                  onClick={() => completeSet(currentExerciseIndex, setIndex)}
-                  disabled={set.completed}
-                >
-                  {set.completed ? <Check className="h-4 w-4" /> : '✓'}
-                </Button>
-              </div>
-            </div>
-          ))}
+     {/* Current Exercise */}
+<Card className="p-6">
+  <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
+    {currentExercise.name}
+    {currentExercise.isCardio && (
+      <span className="ml-2 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
+        Cardio
+      </span>
+    )}
+  </h2>
+  
+  <div className="space-y-4">
+    {currentExercise.sets.map((set, setIndex) => (
+      <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
+        <div className="text-sm text-secondary-600 mb-2">
+          Set {setIndex + 1}
         </div>
         
-        <Input
-          placeholder="Exercise notes..."
-          value={currentExercise.notes || ''}
-          onChange={(e) => {
-            const updatedWorkout = { ...currentWorkout };
-            updatedWorkout.exercises[currentExerciseIndex].notes = e.target.value;
-            setCurrentWorkout(updatedWorkout);
-          }}
-          className="mt-4"
-        />
-        
-        <Button onClick={nextExercise} className="w-full mt-4">
-          {currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'}
-        </Button>
-      </Card>
+        {currentExercise.isCardio ? (
+          // Cardio Exercise Logging
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="Distance (mi)"
+                value={set.actualDistance || ''}
+                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDistance', e.target.value)}
+              />
+              <Input
+                placeholder="Duration (min)"
+                value={set.actualDuration || ''}
+                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDuration', e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                placeholder="Floors Climbed"
+                value={set.actualFloorsClimbed || ''}
+                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualFloorsClimbed', e.target.value)}
+              />
+              <Input
+                placeholder="Weighted Vest (lbs)"
+                value={set.actualWeightedVest || ''}
+                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeightedVest', e.target.value)}
+              />
+            </div>
+            <div className="flex justify-center">
+              <Button
+                variant={set.completed ? 'primary' : 'outline'}
+                size="sm"
+                onClick={() => completeSet(currentExerciseIndex, setIndex)}
+                disabled={set.completed}
+              >
+                {set.completed ? '✓ Completed' : 'Complete Set'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          // Regular Exercise Logging
+          <div className="flex items-center gap-3">
+            <Input
+              placeholder="Weight"
+              value={set.actualWeight || ''}
+              onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
+              className="flex-1"
+            />
+            <Input
+              placeholder="Reps"
+              value={set.actualReps || ''}
+              onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              variant={set.completed ? 'primary' : 'outline'}
+              size="sm"
+              onClick={() => completeSet(currentExerciseIndex, setIndex)}
+              disabled={set.completed}
+            >
+              {set.completed ? <Check className="h-4 w-4" /> : '✓'}
+            </Button>
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+  
+  <Input
+    placeholder="Exercise notes..."
+    value={currentExercise.notes || ''}
+    onChange={(e) => {
+      const updatedWorkout = { ...currentWorkout };
+      updatedWorkout.exercises[currentExerciseIndex].notes = e.target.value;
+      setCurrentWorkout(updatedWorkout);
+    }}
+    className="mt-4"
+  />
+  
+  <Button onClick={nextExercise} className="w-full mt-4">
+    {currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'}
+  </Button>
+</Card>
 
       {/* Exercise Navigation */}
       <Card className="p-4">
