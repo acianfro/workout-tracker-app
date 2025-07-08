@@ -186,16 +186,32 @@ async function deleteMeasurement(measurementId) {
     }
   }
 
-  async function updateWorkout(workoutId, workoutData) {
-    if (!currentUser) return;
+async function updateWorkout(workoutId, workoutData) {
+  if (!currentUser) return;
 
-    try {
-      await updateDoc(doc(db, 'workouts', workoutId), workoutData);
-    } catch (error) {
-      console.error('Error updating workout:', error);
-      throw error;
-    }
+  try {
+    await updateDoc(doc(db, 'workouts', workoutId), {
+      ...workoutData,
+      updatedAt: new Date()
+    });
+    console.log('Workout updated successfully');
+  } catch (error) {
+    console.error('Error updating workout:', error);
+    throw error;
   }
+}
+
+async function deleteWorkout(workoutId) {
+  if (!currentUser) return;
+
+  try {
+    await deleteDoc(doc(db, 'workouts', workoutId));
+    console.log('Workout deleted successfully');
+  } catch (error) {
+    console.error('Error deleting workout:', error);
+    throw error;
+  }
+}
 
   // Calculate age from date of birth
   function calculateAge(dateOfBirth) {
