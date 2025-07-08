@@ -46,6 +46,7 @@ export default function PlanScreen() {
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingExerciseId, setEditingExerciseId] = useState(null);
+  const [selectedExercises, setSelectedExercises] = useState([]); // For multi-select
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
@@ -222,7 +223,39 @@ export default function PlanScreen() {
       ...prev,
       exercises: [...prev.exercises, newExercise]
     }));
+  };
+
+  const addSelectedExercises = () => {
+    selectedExercises.forEach(exercise => {
+      addExerciseToWorkout(exercise);
+    });
+    setSelectedExercises([]);
     setShowExerciseSelection(false);
+  };
+
+  const toggleExerciseSelection = (exercise) => {
+    setSelectedExercises(prev => {
+      const isSelected = prev.some(ex => ex.id === exercise.id);
+      if (isSelected) {
+        return prev.filter(ex => ex.id !== exercise.id);
+      } else {
+        return [...prev, exercise];
+      }
+    });
+  };
+
+  const isExerciseSelected = (exercise) => {
+    return selectedExercises.some(ex => ex.id === exercise.id);
+  };
+
+  const selectAllExercises = () => {
+    if (selectedExercises.length === filteredExercises.length) {
+      // Deselect all
+      setSelectedExercises([]);
+    } else {
+      // Select all filtered exercises
+      setSelectedExercises([...filteredExercises]);
+    }
   };
 
   const removeExercise = (exerciseId) => {
@@ -241,23 +274,19 @@ export default function PlanScreen() {
     }));
   };
 
-const startWorkout = () => {
-  if (workoutPlan.exercises.length === 0) {
-    alert('Please add at least one exercise to your workout plan.');
-    return;
-  }
-  
-  // Create a date object that preserves the local date
-  const workoutDate = new Date(workoutPlan.date + 'T12:00:00'); // Add noon time to avoid timezone issues
-  
-  setCurrentWorkout({
-    ...workoutPlan,
-    date: workoutDate, // Use the properly formatted date
-    startTime: new Date(),
-    status: 'active'
-  });
-  navigate('/workout');
-};
+  const startWorkout = () => {
+    if (workoutPlan.exercises.length === 0) {
+      alert('Please add at least one exercise to your workout plan.');
+      return;
+    }
+    
+    setCurrentWorkout({
+      ...workoutPlan,
+      startTime: new Date(),
+      status: 'active'
+    });
+    navigate('/workout');
+  };
 
   // Filter exercises based on search term
   const filteredExercises = availableExercises.filter(exercise =>
@@ -397,7 +426,10 @@ const startWorkout = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-secondary-900">Add Exercises</h2>
             <button
-              onClick={() => setShowExerciseSelection(false)}
+              onClick={() => {
+                setShowExerciseSelection(false);
+                setSelectedExercises([]);
+              }}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <X className="h-5 w-5" />
@@ -411,8 +443,18 @@ const startWorkout = () => {
             className="mb-4"
           />
           
-          <div className="text-sm text-secondary-600 mb-3">
-            {workoutPlan.focusArea} Exercises ({filteredExercises.length})
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-sm text-secondary-600">
+              {workoutPlan.focusArea} Exercises ({filteredExercises.length})
+            </div>
+            {filteredExercises.length > 0 && (
+              <button
+                onClick={selectAllExercises}
+                className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+              >
+                {selectedExercises.length === filteredExercises.length ? 'Deselect All' : 'Select All'}
+              </button>
+            )}
           </div>
           
           <div className="space-y-3 mb-6 max-h-64 overflow-y-auto">
@@ -423,13 +465,22 @@ const startWorkout = () => {
                     className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
                     onClick={() => handleEditExercise(exercise)}
                   >
-                    <div className="font-medium text-secondary-900">{exercise.name}</div>
-                    <div className="text-xs text-secondary-500 capitalize">
+                    <div className="font-medium text-secondary-900 flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={isExerciseSelected(exercise)}
+                        onChange={() => toggleExerciseSelection(exercise)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="mr-3 w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                      />
+                      {exercise.name}
+                    </div>
+                    <div className="text-xs text-secondary-500 capitalize ml-7">
                       {exercise.category}
                       {exercise.isCustom && ' • Custom'}
                       <span className="text-primary-600 ml-2">• Click to edit</span>
                     </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="flex flex-wrap gap-1 mt-2 ml-7">
                       {exercise.focusAreas?.map(area => (
                         <span 
                           key={area}
@@ -441,8 +492,12 @@ const startWorkout = () => {
                     </div>
                   </div>
                   <div className="flex gap-2 ml-2">
-                    <Button size="sm" onClick={() => addExerciseToWorkout(exercise)}>
-                      + Add
+                    <Button 
+                      size="sm" 
+                      onClick={() => addExerciseToWorkout(exercise)}
+                      variant="outline"
+                    >
+                      Add Single
                     </Button>
                     {exercise.isCustom && (
                       <button
@@ -471,6 +526,30 @@ const startWorkout = () => {
               </div>
             )}
           </div>
+          
+          {/* Multi-select actions */}
+          {selectedExercises.length > 0 && (
+            <div className="bg-primary-50 border-2 border-primary-200 rounded-lg p-4 mb-4">
+              <div className="text-sm text-primary-800 mb-3">
+                <strong>{selectedExercises.length}</strong> exercise{selectedExercises.length !== 1 ? 's' : ''} selected
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={addSelectedExercises}
+                  className="flex-1"
+                >
+                  Add Selected ({selectedExercises.length})
+                </Button>
+                <Button 
+                  onClick={() => setSelectedExercises([])}
+                  variant="secondary"
+                  size="sm"
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
           
           <Button 
             onClick={() => setShowAddNewExercise(true)}
