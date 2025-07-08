@@ -152,16 +152,17 @@ export default function ProgressScreen() {
     }
   };
 
-  const handleDeleteWorkout = async (workoutId) => {
-    if (confirm('Are you sure you want to delete this workout? This action cannot be undone.')) {
-      try {
-        await deleteWorkout(workoutId);
-      } catch (error) {
-        console.error('Error deleting workout:', error);
-        alert('Error deleting workout: ' + error.message);
-      }
+const handleDeleteWorkout = async (workoutId) => {
+  if (confirm('Are you sure you want to delete this workout? This action cannot be undone.')) {
+    try {
+      await deleteWorkout(workoutId);
+      // No need to manually refresh - the real-time listener should update automatically
+    } catch (error) {
+      console.error('Error deleting workout:', error);
+      alert('Error deleting workout: ' + error.message);
     }
-  };
+  }
+};
 
   const cancelEdit = () => {
     setEditingWorkout(null);
