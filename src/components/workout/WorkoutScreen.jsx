@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Clock, Check, Edit } from 'lucide-react';
+import { Clock, Check, Edit, Plus, Minus, X, Search } from 'lucide-react';
 import { format, differenceInMinutes, differenceInSeconds } from 'date-fns';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 
 export default function WorkoutScreen() {
   const { currentWorkout, setCurrentWorkout, saveWorkout, calculateTotalWeight } = useUserData();
@@ -15,6 +17,9 @@ export default function WorkoutScreen() {
   const [workoutRating, setWorkoutRating] = useState(8);
   const [workoutNotes, setWorkoutNotes] = useState('');
   const [showWorkoutComplete, setShowWorkoutComplete] = useState(false);
+  const [showAddExercise, setShowAddExercise] = useState(false);
+  const [availableExercises, setAvailableExercises] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (!currentWorkout) {
@@ -34,6 +39,33 @@ export default function WorkoutScreen() {
     return () => clearInterval(timer);
   }, [currentWorkout, navigate]);
 
+  const loadAvailableExercises = async () => {
+    try {
+      const exercisesQuery = query(
+        collection(db, 'exercises'),
+        where('focusAreas', 'array-contains', currentWorkout.focusArea),
+        orderBy('name')
+      );
+      const exercisesSnapshot = await getDocs(exercisesQuery);
+      
+      const exercises = exercisesSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      setAvailableExercises(exercises);
+    } catch (error) {
+      console.error('Error loading exercises:', error);
+      setAvailableExercises([]);
+    }
+  };
+
+  useEffect(() => {
+    if (showAddExercise) {
+      loadAvailableExercises();
+    }
+  }, [showAddExercise]);
+
   const updateSet = (exerciseIndex, setIndex, field, value) => {
     const updatedWorkout = { ...currentWorkout };
     updatedWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
@@ -44,6 +76,78 @@ export default function WorkoutScreen() {
     const updatedWorkout = { ...currentWorkout };
     updatedWorkout.exercises[exerciseIndex].sets[setIndex].completed = true;
     setCurrentWorkout(updatedWorkout);
+  };
+
+  const addSetToExercise = (exerciseIndex) => {
+    const updatedWorkout = { ...currentWorkout };
+    const exercise = updatedWorkout.exercises[exerciseIndex];
+    
+    const newSet = exercise.isCardio ? {
+      distance: '',
+      floorsClimbed: '',
+      weightedVest: '',
+      duration: '',
+      completed: false
+    } : {
+      weight: '',
+      reps: '',
+      completed: false
+    };
+    
+    updatedWorkout.exercises[exerciseIndex].sets.push(newSet);
+    setCurrentWorkout(updatedWorkout);
+  };
+
+  const removeSetFromExercise = (exerciseIndex, setIndex) => {
+    const updatedWorkout = { ...currentWorkout };
+    if (updatedWorkout.exercises[exerciseIndex].sets.length > 1) {
+      updatedWorkout.exercises[exerciseIndex].sets.splice(setIndex, 1);
+      setCurrentWorkout(updatedWorkout);
+    }
+  };
+
+  const addExerciseToWorkout = (exercise) => {
+    const isCardio = exercise.category === 'cardio' || exercise.focusAreas.includes('Cardio');
+    
+    const newExercise = {
+      id: Date.now(),
+      name: exercise.name,
+      category: exercise.category,
+      focusAreas: exercise.focusAreas,
+      isCardio: isCardio,
+      sets: isCardio ? [
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
+        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false }
+      ] : [
+        { weight: '', reps: '', completed: false },
+        { weight: '', reps: '', completed: false },
+        { weight: '', reps: '', completed: false },
+        { weight: '', reps: '', completed: false }
+      ]
+    };
+    
+    const updatedWorkout = { ...currentWorkout };
+    updatedWorkout.exercises.push(newExercise);
+    setCurrentWorkout(updatedWorkout);
+    setShowAddExercise(false);
+  };
+
+  const removeExerciseFromWorkout = (exerciseIndex) => {
+    if (confirm('Remove this exercise from the workout?')) {
+      const updatedWorkout = { ...currentWorkout };
+      updatedWorkout.exercises.splice(exerciseIndex, 1);
+      
+      // Adjust current exercise index if needed
+      if (currentExerciseIndex >= updatedWorkout.exercises.length && updatedWorkout.exercises.length > 0) {
+        setCurrentExerciseIndex(updatedWorkout.exercises.length - 1);
+      } else if (updatedWorkout.exercises.length === 0) {
+        setShowWorkoutComplete(true);
+      }
+      
+      setCurrentWorkout(updatedWorkout);
+    }
   };
 
   const nextExercise = () => {
@@ -76,6 +180,11 @@ export default function WorkoutScreen() {
     }
   };
 
+  const filteredExercises = availableExercises.filter(exercise =>
+    exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    !currentWorkout.exercises.some(ex => ex.name === exercise.name)
+  );
+
   if (!currentWorkout) {
     return (
       <div className="p-4 max-w-md mx-auto">
@@ -85,6 +194,65 @@ export default function WorkoutScreen() {
           <Button onClick={() => navigate('/plan')}>
             Plan Workout
           </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  if (showAddExercise) {
+    return (
+      <div className="p-4 max-w-md mx-auto">
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-secondary-900">Add Exercise</h2>
+            <button
+              onClick={() => setShowAddExercise(false)}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <Input
+            placeholder="🔍 Search exercises..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="mb-4"
+          />
+          
+          <div className="space-y-3 max-h-64 overflow-y-auto">
+            {filteredExercises.map((exercise) => (
+              <div key={exercise.id} className="border-2 border-secondary-200 rounded-lg bg-white p-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="font-medium text-secondary-900">{exercise.name}</div>
+                    <div className="text-xs text-secondary-500 capitalize">
+                      {exercise.category}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {exercise.focusAreas?.slice(0, 2).map(area => (
+                        <span 
+                          key={area}
+                          className="text-xs bg-primary-100 text-primary-700 px-1 py-0.5 rounded"
+                        >
+                          {area}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => addExerciseToWorkout(exercise)}>
+                    + Add
+                  </Button>
+                </div>
+              </div>
+            ))}
+            
+            {filteredExercises.length === 0 && (
+              <div className="text-center text-secondary-500 py-4">
+                {searchTerm ? `No exercises found matching "${searchTerm}"` : 'All exercises already added'}
+              </div>
+            )}
+          </div>
         </Card>
       </div>
     );
@@ -176,110 +344,154 @@ export default function WorkoutScreen() {
             <div className="text-sm text-secondary-600">
               Exercise {currentExerciseIndex + 1} of {currentWorkout.exercises.length}
             </div>
+            <Button 
+              size="sm" 
+              variant="secondary" 
+              onClick={() => setShowAddExercise(true)}
+              className="mt-1"
+            >
+              <Plus className="h-3 w-3 mr-1" />
+              Add Exercise
+            </Button>
           </div>
         </div>
       </Card>
 
-     {/* Current Exercise */}
-<Card className="p-6">
-  <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
-    {currentExercise.name}
-    {currentExercise.isCardio && (
-      <span className="ml-2 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
-        Cardio
-      </span>
-    )}
-  </h2>
-  
-  <div className="space-y-4">
-    {currentExercise.sets.map((set, setIndex) => (
-      <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
-        <div className="text-sm text-secondary-600 mb-2">
-          Set {setIndex + 1}
+      {/* Current Exercise */}
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-secondary-900">
+            {currentExercise.name}
+            {currentExercise.isCardio && (
+              <span className="ml-2 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
+                Cardio
+              </span>
+            )}
+          </h2>
+          <button
+            onClick={() => removeExerciseFromWorkout(currentExerciseIndex)}
+            className="p-1 text-red-600 hover:bg-red-100 rounded"
+            title="Remove exercise"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
         
-        {currentExercise.isCardio ? (
-          // Cardio Exercise Logging
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="Distance (mi)"
-                value={set.actualDistance || ''}
-                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDistance', e.target.value)}
-              />
-              <Input
-                placeholder="Duration (min)"
-                value={set.actualDuration || ''}
-                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDuration', e.target.value)}
-              />
+        <div className="space-y-4">
+          {currentExercise.sets.map((set, setIndex) => (
+            <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-2">
+                <div className="text-sm text-secondary-600">
+                  Set {setIndex + 1}
+                  {/* Show planned values if they exist */}
+                  {!currentExercise.isCardio && set.weight && set.reps && (
+                    <span className="text-primary-600 ml-2">
+                      (Planned: {set.weight} × {set.reps})
+                    </span>
+                  )}
+                </div>
+                {currentExercise.sets.length > 1 && (
+                  <button
+                    onClick={() => removeSetFromExercise(currentExerciseIndex, setIndex)}
+                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                    title="Remove set"
+                  >
+                    <Minus className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              
+              {currentExercise.isCardio ? (
+                // Cardio Exercise Logging
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Distance (mi)"
+                      value={set.actualDistance || set.distance || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDistance', e.target.value)}
+                    />
+                    <Input
+                      placeholder="Duration (min)"
+                      value={set.actualDuration || set.duration || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDuration', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Floors Climbed"
+                      value={set.actualFloorsClimbed || set.floorsClimbed || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualFloorsClimbed', e.target.value)}
+                    />
+                    <Input
+                      placeholder="Weighted Vest (lbs)"
+                      value={set.actualWeightedVest || set.weightedVest || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeightedVest', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-center">
+                    <Button
+                      variant={set.completed ? 'primary' : 'outline'}
+                      size="sm"
+                      onClick={() => completeSet(currentExerciseIndex, setIndex)}
+                      disabled={set.completed}
+                    >
+                      {set.completed ? '✓ Completed' : 'Complete Set'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                // Regular Exercise Logging
+                <div className="flex items-center gap-3">
+                  <Input
+                    placeholder="Weight"
+                    value={set.actualWeight || set.weight || ''}
+                    onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    placeholder="Reps"
+                    value={set.actualReps || set.reps || ''}
+                    onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    variant={set.completed ? 'primary' : 'outline'}
+                    size="sm"
+                    onClick={() => completeSet(currentExerciseIndex, setIndex)}
+                    disabled={set.completed}
+                  >
+                    {set.completed ? <Check className="h-4 w-4" /> : '✓'}
+                  </Button>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                placeholder="Floors Climbed"
-                value={set.actualFloorsClimbed || ''}
-                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualFloorsClimbed', e.target.value)}
-              />
-              <Input
-                placeholder="Weighted Vest (lbs)"
-                value={set.actualWeightedVest || ''}
-                onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeightedVest', e.target.value)}
-              />
-            </div>
-            <div className="flex justify-center">
-              <Button
-                variant={set.completed ? 'primary' : 'outline'}
-                size="sm"
-                onClick={() => completeSet(currentExerciseIndex, setIndex)}
-                disabled={set.completed}
-              >
-                {set.completed ? '✓ Completed' : 'Complete Set'}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          // Regular Exercise Logging
-          <div className="flex items-center gap-3">
-            <Input
-              placeholder="Weight"
-              value={set.actualWeight || ''}
-              onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
-              className="flex-1"
-            />
-            <Input
-              placeholder="Reps"
-              value={set.actualReps || ''}
-              onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              variant={set.completed ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => completeSet(currentExerciseIndex, setIndex)}
-              disabled={set.completed}
-            >
-              {set.completed ? <Check className="h-4 w-4" /> : '✓'}
-            </Button>
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-  
-  <Input
-    placeholder="Exercise notes..."
-    value={currentExercise.notes || ''}
-    onChange={(e) => {
-      const updatedWorkout = { ...currentWorkout };
-      updatedWorkout.exercises[currentExerciseIndex].notes = e.target.value;
-      setCurrentWorkout(updatedWorkout);
-    }}
-    className="mt-4"
-  />
-  
-  <Button onClick={nextExercise} className="w-full mt-4">
-    {currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'}
-  </Button>
-</Card>
+          ))}
+        </div>
+        
+        <Button 
+          onClick={() => addSetToExercise(currentExerciseIndex)}
+          variant="secondary"
+          className="w-full mt-4 flex items-center justify-center"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add Set
+        </Button>
+        
+        <Input
+          placeholder="Exercise notes..."
+          value={currentExercise.notes || ''}
+          onChange={(e) => {
+            const updatedWorkout = { ...currentWorkout };
+            updatedWorkout.exercises[currentExerciseIndex].notes = e.target.value;
+            setCurrentWorkout(updatedWorkout);
+          }}
+          className="mt-4"
+        />
+        
+        <Button onClick={nextExercise} className="w-full mt-4">
+          {currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'}
+        </Button>
+      </Card>
 
       {/* Exercise Navigation */}
       <Card className="p-4">
