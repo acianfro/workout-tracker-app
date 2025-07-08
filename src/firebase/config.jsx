@@ -1,34 +1,22 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
-// Replace these with your actual Firebase config values
+// Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyCC0uuELp95mO6oD7fLVYtseBYdRKzrSr8",
-  authDomain: "workout-tracker-app-3f74c.firebaseapp.com",
-  projectId: "workout-tracker-app-3f74c",
-  storageBucket: "workout-tracker-app-3f74c.firebasestorage.app",
-  messagingSenderId: "645811369612",
-  appId: "1:645811369612:web:23c19fb72573653dee2da9",
-  measurementId: "G-NGJXYJTSKB"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore with offline persistence
+// Initialize Firestore with modern caching (no deprecated persistence)
 export const db = getFirestore(app);
-
-// Enable offline persistence
-try {
-  enableIndexedDbPersistence(db);
-} catch (err) {
-  if (err.code === 'failed-precondition') {
-    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-  } else if (err.code === 'unimplemented') {
-    console.warn('The current browser does not support all of the features required to enable persistence');
-  }
-}
 
 // Initialize Auth
 export const auth = getAuth(app);
