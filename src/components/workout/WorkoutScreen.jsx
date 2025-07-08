@@ -18,8 +18,16 @@ export default function WorkoutScreen() {
   const [workoutNotes, setWorkoutNotes] = useState('');
   const [showWorkoutComplete, setShowWorkoutComplete] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showAddNewExercise, setShowAddNewExercise] = useState(false);
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [newExercise, setNewExercise] = useState({
+    name: '',
+    category: 'compound',
+    focusAreas: [],
+    description: '',
+    instructions: ''
+  });
 
   useEffect(() => {
     if (!currentWorkout) {
@@ -41,6 +49,7 @@ export default function WorkoutScreen() {
 
   const loadAvailableExercises = async () => {
     try {
+      // Load exercises that include the current workout's focus area
       const exercisesQuery = query(
         collection(db, 'exercises'),
         where('focusAreas', 'array-contains', currentWorkout.focusArea),
@@ -61,10 +70,15 @@ export default function WorkoutScreen() {
   };
 
   useEffect(() => {
-    if (showAddExercise) {
+    if (showAddExercise && currentWorkout) {
       loadAvailableExercises();
+      // Set default focus area for new exercises
+      setNewExercise(prev => ({
+        ...prev,
+        focusAreas: [currentWorkout.focusArea]
+      }));
     }
-  }, [showAddExercise]);
+  }, [showAddExercise, currentWorkout]);
 
   const updateSet = (exerciseIndex, setIndex, field, value) => {
     const updatedWorkout = { ...currentWorkout };
@@ -134,6 +148,63 @@ export default function WorkoutScreen() {
     setShowAddExercise(false);
   };
 
+  const handleAddNewExercise = async () => {
+    if (!newExercise.name.trim()) {
+      alert('Please enter an exercise name');
+      return;
+    }
+
+    if (newExercise.focusAreas.length === 0) {
+      alert('Please select at least one focus area');
+      return;
+    }
+
+    try {
+      const exerciseData = {
+        ...newExercise,
+        name: newExercise.name.trim(),
+        focusAreas: newExercise.focusAreas,
+        createdAt: new Date(),
+        isCustom: true
+      };
+
+      const docRef = await addDoc(collection(db, 'exercises'), exerciseData);
+      console.log('New exercise added with ID:', docRef.id);
+
+      // Add to local state and immediately add to workout
+      const newExerciseWithId = { id: docRef.id, ...exerciseData };
+      setAvailableExercises(prev => [...prev, newExerciseWithId].sort((a, b) => a.name.localeCompare(b.name)));
+
+      // Reset form
+      setNewExercise({
+        name: '',
+        category: 'compound',
+        focusAreas: [currentWorkout.focusArea],
+        description: '',
+        instructions: ''
+      });
+      
+      setShowAddNewExercise(false);
+      
+      // Automatically add the new exercise to the workout
+      addExerciseToWorkout(newExerciseWithId);
+      
+      alert('Exercise added to inventory and workout!');
+    } catch (error) {
+      console.error('Error adding new exercise:', error);
+      alert('Error adding exercise: ' + error.message);
+    }
+  };
+
+  const toggleFocusArea = (focusArea) => {
+    setNewExercise(prev => ({
+      ...prev,
+      focusAreas: prev.focusAreas.includes(focusArea)
+        ? prev.focusAreas.filter(area => area !== focusArea)
+        : [...prev.focusAreas, focusArea]
+    }));
+  };
+
   const removeExerciseFromWorkout = (exerciseIndex) => {
     if (confirm('Remove this exercise from the workout?')) {
       const updatedWorkout = { ...currentWorkout };
@@ -158,47 +229,40 @@ export default function WorkoutScreen() {
     }
   };
 
-const finishWorkout = async () => {
-  if (!currentWorkout) return;
+  const finishWorkout = async () => {
+    if (!currentWorkout) return;
 
-  // Process exercises to ensure we have the actual values
-  const processedExercises = currentWorkout.exercises.map(exercise => ({
-    ...exercise,
-    sets: exercise.sets.map(set => ({
-      ...set,
-      // For regular exercises, use actual values or fall back to planned values
-      weight: set.actualWeight || set.weight || '',
-      reps: set.actualReps || set.reps || '',
-      // For cardio exercises
-      distance: set.actualDistance || set.distance || '',
-      duration: set.actualDuration || set.duration || '',
-      floorsClimbed: set.actualFloorsClimbed || set.floorsClimbed || '',
-      weightedVest: set.actualWeightedVest || set.weightedVest || ''
-    }))
-  }));
+    const completedWorkout = {
+      ...currentWorkout,
+      endTime: new Date(),
+      duration: differenceInMinutes(new Date(), currentWorkout.startTime),
+      rating: workoutRating,
+      notes: workoutNotes,
+      totalWeight: calculateTotalWeight(currentWorkout.exercises),
+      status: 'completed'
+    };
 
-  const completedWorkout = {
-    ...currentWorkout,
-    exercises: processedExercises,
-    // Keep the original planned date instead of using current date
-    date: new Date(currentWorkout.date), // This preserves the planned date
-    endTime: new Date(),
-    duration: differenceInMinutes(new Date(), currentWorkout.startTime),
-    rating: workoutRating,
-    notes: workoutNotes,
-    totalWeight: calculateTotalWeight(processedExercises),
-    status: 'completed'
+    try {
+      await saveWorkout(completedWorkout);
+      setCurrentWorkout(null);
+      navigate('/progress');
+    } catch (error) {
+      console.error('Error saving workout:', error);
+    }
   };
 
-  try {
-    await saveWorkout(completedWorkout);
-    setCurrentWorkout(null);
-    navigate('/progress');
-  } catch (error) {
-    console.error('Error saving workout:', error);
-  }
-};
-  
+  // Focus areas in alphabetical order
+  const FOCUS_AREAS = [
+    'Back',
+    'Biceps/Triceps', 
+    'Cardio',
+    'Chest',
+    'Legs',
+    'Pull',
+    'Push',
+    'Shoulders'
+  ];
+
   const filteredExercises = availableExercises.filter(exercise =>
     exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     !currentWorkout.exercises.some(ex => ex.name === exercise.name)
@@ -218,6 +282,109 @@ const finishWorkout = async () => {
     );
   }
 
+  if (showAddNewExercise) {
+    return (
+      <div className="p-4 max-w-md mx-auto">
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-secondary-900">Add New Exercise</h2>
+            <button
+              onClick={() => setShowAddNewExercise(false)}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-secondary-600 mb-2 block">Exercise Name *</label>
+              <Input
+                placeholder="e.g., Bulgarian Split Squats"
+                value={newExercise.name}
+                onChange={(e) => setNewExercise(prev => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="text-sm text-secondary-600 mb-2 block">Exercise Type *</label>
+              <select
+                className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                value={newExercise.category}
+                onChange={(e) => setNewExercise(prev => ({ ...prev, category: e.target.value }))}
+              >
+                <option value="compound">Compound (Multi-joint)</option>
+                <option value="isolation">Isolation (Single-joint)</option>
+                <option value="bodyweight">Bodyweight</option>
+                <option value="cardio">Cardio</option>
+                <option value="flexibility">Flexibility/Mobility</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="text-sm text-secondary-600 mb-2 block">
+                Focus Areas * (Select all that apply)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {FOCUS_AREAS.map(focusArea => (
+                  <button
+                    key={focusArea}
+                    type="button"
+                    onClick={() => toggleFocusArea(focusArea)}
+                    className={`p-2 text-sm rounded-lg border-2 transition-colors ${
+                      newExercise.focusAreas.includes(focusArea)
+                        ? 'bg-primary-500 text-white border-primary-500'
+                        : 'bg-white text-secondary-700 border-secondary-300 hover:border-primary-300'
+                    }`}
+                  >
+                    {focusArea}
+                  </button>
+                ))}
+              </div>
+              <div className="text-xs text-secondary-500 mt-2">
+                Selected: {newExercise.focusAreas.join(', ')}
+              </div>
+            </div>
+            
+            <div>
+              <label className="text-sm text-secondary-600 mb-2 block">Description (Optional)</label>
+              <Input
+                placeholder="Brief description of the exercise"
+                value={newExercise.description}
+                onChange={(e) => setNewExercise(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+            
+            <div>
+              <label className="text-sm text-secondary-600 mb-2 block">Instructions (Optional)</label>
+              <textarea
+                className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                placeholder="How to perform this exercise..."
+                rows="3"
+                value={newExercise.instructions}
+                onChange={(e) => setNewExercise(prev => ({ ...prev, instructions: e.target.value }))}
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-4">
+              <Button onClick={handleAddNewExercise} className="flex-1">
+                Add to Inventory & Workout
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={() => setShowAddNewExercise(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (showAddExercise) {
     return (
       <div className="p-4 max-w-md mx-auto">
@@ -232,6 +399,12 @@ const finishWorkout = async () => {
             </button>
           </div>
           
+          <div className="text-sm text-secondary-600 mb-4 bg-primary-50 p-3 rounded-lg">
+            <strong>Focus Area:</strong> {currentWorkout.focusArea}
+            <br />
+            Showing exercises that include this focus area
+          </div>
+          
           <Input
             placeholder="🔍 Search exercises..."
             value={searchTerm}
@@ -239,7 +412,7 @@ const finishWorkout = async () => {
             className="mb-4"
           />
           
-          <div className="space-y-3 max-h-64 overflow-y-auto">
+          <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
             {filteredExercises.map((exercise) => (
               <div key={exercise.id} className="border-2 border-secondary-200 rounded-lg bg-white p-3">
                 <div className="flex justify-between items-start">
@@ -247,9 +420,10 @@ const finishWorkout = async () => {
                     <div className="font-medium text-secondary-900">{exercise.name}</div>
                     <div className="text-xs text-secondary-500 capitalize">
                       {exercise.category}
+                      {exercise.isCustom && ' • Custom'}
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {exercise.focusAreas?.slice(0, 2).map(area => (
+                      {exercise.focusAreas?.slice(0, 3).map(area => (
                         <span 
                           key={area}
                           className="text-xs bg-primary-100 text-primary-700 px-1 py-0.5 rounded"
@@ -257,6 +431,11 @@ const finishWorkout = async () => {
                           {area}
                         </span>
                       ))}
+                      {exercise.focusAreas?.length > 3 && (
+                        <span className="text-xs text-secondary-500">
+                          +{exercise.focusAreas.length - 3}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Button size="sm" onClick={() => addExerciseToWorkout(exercise)}>
@@ -266,12 +445,28 @@ const finishWorkout = async () => {
               </div>
             ))}
             
-            {filteredExercises.length === 0 && (
+            {filteredExercises.length === 0 && searchTerm && (
               <div className="text-center text-secondary-500 py-4">
-                {searchTerm ? `No exercises found matching "${searchTerm}"` : 'All exercises already added'}
+                No exercises found matching "{searchTerm}"
+              </div>
+            )}
+
+            {filteredExercises.length === 0 && !searchTerm && (
+              <div className="text-center text-secondary-500 py-4">
+                No available exercises for {currentWorkout.focusArea} focus area.
+                <br />Create a new exercise below!
               </div>
             )}
           </div>
+          
+          <Button 
+            onClick={() => setShowAddNewExercise(true)}
+            variant="secondary"
+            className="w-full flex items-center justify-center"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Exercise to Inventory
+          </Button>
         </Card>
       </div>
     );
