@@ -89,12 +89,26 @@ export default function ProgressScreen() {
         if (exercise.name.toLowerCase().includes(searchTerm.toLowerCase())) {
           const existing = exerciseMap.get(exercise.name);
           if (!existing || workout.date > existing.date) {
+            // Get the best weight/reps from the exercise sets
+            let lastWeight = 'BW';
+            let lastReps = '--';
+            
+            if (exercise.sets && exercise.sets.length > 0) {
+              // Find the first set with actual values, or fall back to planned values
+              const setWithData = exercise.sets.find(s => 
+                (s.actualWeight && s.actualReps) || (s.weight && s.reps)
+              );
+              
+              if (setWithData) {
+                lastWeight = setWithData.actualWeight || setWithData.weight || 'BW';
+                lastReps = setWithData.actualReps || setWithData.reps || '--';
+              }
+            }
+            
             exerciseMap.set(exercise.name, {
               name: exercise.name,
-              lastWeight: exercise.sets?.find(s => s.actualWeight)?.actualWeight || 
-                         exercise.sets?.find(s => s.weight)?.weight || 'BW',
-              lastReps: exercise.sets?.find(s => s.actualReps)?.actualReps || 
-                       exercise.sets?.find(s => s.reps)?.reps || '--',
+              lastWeight,
+              lastReps,
               date: workout.date
             });
           }
@@ -168,134 +182,124 @@ export default function ProgressScreen() {
             </button>
           </div>
           
-<div className="space-y-4">
-  <div>
-    <label htmlFor="workout-date" className="text-sm text-secondary-600 mb-2 block">Date</label>
-    <Input
-      id="workout-date"
-      name="date"
-      type="date"
-      value={editWorkoutData.date}
-      onChange={(e) => setEditWorkoutData(prev => ({ ...prev, date: e.target.value }))}
-    />
-  </div>
-  
-  <div>
-    <label htmlFor="workout-type" className="text-sm text-secondary-600 mb-2 block">Workout Type</label>
-    <select
-      id="workout-type"
-      name="workoutType"
-      className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
-      value={editWorkoutData.type}
-      onChange={(e) => setEditWorkoutData(prev => ({ ...prev, type: e.target.value }))}
-    >
-      <option value="hypertrophy">Hypertrophy</option>
-      <option value="power">Power</option>
-      <option value="strength">Strength</option>
-      <option value="endurance">Endurance</option>
-    </select>
-  </div>
-  
-  <div>
-    <label htmlFor="focus-area" className="text-sm text-secondary-600 mb-2 block">Focus Area</label>
-    <select
-      id="focus-area"
-      name="focusArea"
-      className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
-      value={editWorkoutData.focusArea}
-      onChange={(e) => setEditWorkoutData(prev => ({ ...prev, focusArea: e.target.value }))}
-    >
-      <option value="push">Push</option>
-      <option value="pull">Pull</option>
-      <option value="legs">Legs</option>
-      <option value="full-body">Full Body</option>
-    </select>
-  </div>
-  
-  <div>
-    <label htmlFor="duration" className="text-sm text-secondary-600 mb-2 block">Duration (minutes)</label>
-    <Input
-      id="duration"
-      name="duration"
-      type="number"
-      placeholder="45"
-      value={editWorkoutData.duration}
-      onChange={(e) => setEditWorkoutData(prev => ({ ...prev, duration: e.target.value }))}
-    />
-  </div>
-  
-  <div>
-    <label htmlFor="motivation" className="text-sm text-secondary-600 mb-2 block">Motivation Level (1-10)</label>
-    <div className="flex items-center gap-2" role="group" aria-labelledby="motivation">
-      {[1,2,3,4,5,6,7,8,9,10].map(num => (
-        <button
-          key={num}
-          type="button"
-          onClick={() => setEditWorkoutData(prev => ({ ...prev, motivation: num }))}
-          className={`w-8 h-8 rounded text-sm ${
-            num <= editWorkoutData.motivation 
-              ? 'bg-yellow-400 text-yellow-900' 
-              : 'bg-gray-200 text-gray-500'
-          }`}
-          aria-label={`Motivation level ${num}`}
-        >
-          {num}
-        </button>
-      ))}
-    </div>
-  </div>
-  
-  <div>
-    <label htmlFor="rating" className="text-sm text-secondary-600 mb-2 block">Workout Rating (1-10)</label>
-    <div className="flex items-center gap-2" role="group" aria-labelledby="rating">
-      {[1,2,3,4,5,6,7,8,9,10].map(num => (
-        <button
-          key={num}
-          type="button"
-          onClick={() => setEditWorkoutData(prev => ({ ...prev, rating: num }))}
-          className={`w-8 h-8 rounded text-sm ${
-            num <= editWorkoutData.rating 
-              ? 'bg-green-400 text-green-900' 
-              : 'bg-gray-200 text-gray-500'
-          }`}
-          aria-label={`Rating ${num}`}
-        >
-          {num}
-        </button>
-      ))}
-    </div>
-  </div>
-  
-  <div>
-    <label htmlFor="notes" className="text-sm text-secondary-600 mb-2 block">Notes</label>
-    <textarea
-      id="notes"
-      name="notes"
-      className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
-      placeholder="Workout notes..."
-      rows="3"
-      value={editWorkoutData.notes}
-      onChange={(e) => setEditWorkoutData(prev => ({ ...prev, notes: e.target.value }))}
-    />
-  </div>
-</div>
-            
-            <div className="flex gap-3 pt-4">
-              <Button 
-                onClick={() => handleUpdateWorkout(editingWorkout)}
-                className="flex-1"
-              >
-                Save Changes
-              </Button>
-              <Button 
-                onClick={cancelEdit}
-                variant="secondary"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+          <form onSubmit={(e) => { e.preventDefault(); handleUpdateWorkout(editingWorkout); }}>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="workout-date" className="text-sm text-secondary-600 mb-2 block">Date</label>
+                <Input
+                  id="workout-date"
+                  name="date"
+                  type="date"
+                  value={editWorkoutData.date}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="workout-type" className="text-sm text-secondary-600 mb-2 block">Workout Type</label>
+                <select
+                  id="workout-type"
+                  name="workoutType"
+                  className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                  value={editWorkoutData.type}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, type: e.target.value }))}
+                >
+                  <option value="hypertrophy">Hypertrophy</option>
+                  <option value="power">Power</option>
+                  <option value="strength">Strength</option>
+                  <option value="endurance">Endurance</option>
+                </select>
+              </div>
+              
+              <div>
+                <label htmlFor="focus-area" className="text-sm text-secondary-600 mb-2 block">Focus Area</label>
+                <select
+                  id="focus-area"
+                  name="focusArea"
+                  className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                  value={editWorkoutData.focusArea}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, focusArea: e.target.value }))}
+                >
+                  <option value="Back">Back</option>
+                  <option value="Biceps/Triceps">Biceps/Triceps</option>
+                  <option value="Cardio">Cardio</option>
+                  <option value="Chest">Chest</option>
+                  <option value="Legs">Legs</option>
+                  <option value="Pull">Pull</option>
+                  <option value="Push">Push</option>
+                  <option value="Shoulders">Shoulders</option>
+                </select>
+              </div>
+              
+              <div>
+                <label htmlFor="duration" className="text-sm text-secondary-600 mb-2 block">Duration (minutes)</label>
+                <Input
+                  id="duration"
+                  name="duration"
+                  type="number"
+                  placeholder="45"
+                  value={editWorkoutData.duration}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, duration: e.target.value }))}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="motivation" className="text-sm text-secondary-600 mb-2 block">Motivation Level (1-10)</label>
+                <Input
+                  id="motivation"
+                  name="motivation"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={editWorkoutData.motivation}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, motivation: parseInt(e.target.value) || 5 }))}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="rating" className="text-sm text-secondary-600 mb-2 block">Workout Rating (1-10)</label>
+                <Input
+                  id="rating"
+                  name="rating"
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={editWorkoutData.rating}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, rating: parseInt(e.target.value) || 5 }))}
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="notes" className="text-sm text-secondary-600 mb-2 block">Notes</label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                  placeholder="Workout notes..."
+                  rows="3"
+                  value={editWorkoutData.notes}
+                  onChange={(e) => setEditWorkoutData(prev => ({ ...prev, notes: e.target.value }))}
+                />
+              </div>
+              
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  type="submit"
+                  className="flex-1"
+                >
+                  Save Changes
+                </Button>
+                <Button 
+                  type="button"
+                  onClick={cancelEdit}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
             </div>
-          </div>
+          </form>
         </Card>
       </div>
     );
@@ -421,57 +425,63 @@ export default function ProgressScreen() {
         </h3>
         
         <div className="space-y-3">
-          {filteredWorkouts.slice(0, 10).map((workout) => (
-            <div key={workout.id} className="border-2 border-secondary-200 rounded-lg bg-white">
-              <div className="flex justify-between items-center p-3">
-                <div className="flex-1">
-                  <div className="font-medium text-secondary-900 capitalize flex items-center">
-                    {workout.focusArea} Day
-                    <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded capitalize">
-                      {workout.type}
-                    </span>
-                  </div>
-                  <div className="text-sm text-secondary-600 flex items-center gap-3">
-                    <span className="flex items-center">
-                      <Calendar className="h-3 w-3 mr-1" />
-                      {format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'MMM d')}
-                    </span>
-                    <span className="flex items-center">
-                      <Clock className="h-3 w-3 mr-1" />
-                      {workout.duration}min
-                    </span>
-                    <span>{(workout.totalWeight || 0).toLocaleString()} lbs</span>
-                  </div>
-                  {workout.notes && (
-                    <div className="text-xs text-secondary-500 mt-1 italic">
-                      "{workout.notes}"
+          {filteredWorkouts.slice(0, 10).map((workout) => {
+            // Debug logging - remove after fixing
+            console.log('Displaying workout:', workout);
+            
+            return (
+              <div key={workout.id} className="border-2 border-secondary-200 rounded-lg bg-white">
+                <div className="flex justify-between items-center p-3">
+                  <div className="flex-1">
+                    <div className="font-medium text-secondary-900 capitalize flex items-center">
+                      {workout.focusArea || 'Unknown'} Day
+                      <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded capitalize">
+                        {workout.type || 'workout'}
+                      </span>
                     </div>
-                  )}
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="text-sm text-secondary-600">
-                    {workout.rating}/10
+                    <div className="text-sm text-secondary-600 flex items-center gap-3">
+                      <span className="flex items-center">
+                        <Calendar className="h-3 w-3 mr-1" />
+                        {format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'MMM d')}
+                      </span>
+                      <span className="flex items-center">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {workout.duration || 0}min
+                      </span>
+                      <span>{(workout.totalWeight || 0).toLocaleString()} lbs</span>
+                    </div>
+                    {workout.notes && (
+                      <div className="text-xs text-secondary-500 mt-1 italic">
+                        "{workout.notes}"
+                      </div>
+                    )}
+                    {/* Exercise count */}
+                    <div className="text-xs text-secondary-500 mt-1">
+                      {workout.exercises?.length || 0} exercises • Rating: {workout.rating || 'N/A'}/10
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => handleEditWorkout(workout)}
-                      className="p-1 text-primary-600 hover:bg-primary-100 rounded"
-                      title="Edit workout"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteWorkout(workout.id)}
-                      className="p-1 text-red-600 hover:bg-red-100 rounded"
-                      title="Delete workout"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => handleEditWorkout(workout)}
+                        className="p-1 text-primary-600 hover:bg-primary-100 rounded"
+                        title="Edit workout"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWorkout(workout.id)}
+                        className="p-1 text-red-600 hover:bg-red-100 rounded"
+                        title="Delete workout"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
         {filteredWorkouts.length === 0 && (
