@@ -38,14 +38,19 @@ const DEFAULT_EXERCISES = {
     { name: 'Leg Curls', category: 'isolation', focusArea: 'legs' }
   ],
     Shoulders: [
+    { name: 'Dumbbell Shoulder Press', category: 'compound', focusArea: 'shoulders' },
   ],
     Bicep/Tricep: [
+    { name: 'Dumbbell Bicep Curl', category: 'isolation', focusArea: 'biceptricep' },
   ],
     Chest: [
+   { name: 'Barbell Bench Press', category: 'compound', focusArea: 'chest' },
   ],
     Back: [
+   { name: 'Pull-Ups', category: 'compound', focusArea: 'back' },
   ],
     Cardio: [
+   { name: 'Run', category: 'cardio', focusArea: 'cardio' },
   ]
 };
 
