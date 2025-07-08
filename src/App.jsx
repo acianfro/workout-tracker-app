@@ -11,6 +11,7 @@ import PlanScreen from './components/plan/PlanScreen';
 import WorkoutScreen from './components/workout/WorkoutScreen';
 import ProgressScreen from './components/progress/ProgressScreen';
 import LoadingSpinner from './components/ui/LoadingSpinner';
+import ScheduledWorkoutsScreen from './components/plan/ScheduledWorkoutsScreen';
 
 // Context
 import { AuthProvider } from './contexts/AuthContext';
@@ -49,6 +50,7 @@ function App() {
                     <Route path="/plan" element={<PlanScreen />} />
                     <Route path="/workout" element={<WorkoutScreen />} />
                     <Route path="/progress" element={<ProgressScreen />} />
+                     <Route path="/schedule" element={<ScheduledWorkoutsScreen/>} />
                   </Routes>
                 </div>
                 <Navigation />
