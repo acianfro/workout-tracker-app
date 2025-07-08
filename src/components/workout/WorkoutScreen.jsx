@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Clock, Check, Edit, Plus, Minus, X, Search } from 'lucide-react';
+import { Clock, Check, Edit, Plus, Minus, X, Search, Link, ArrowRight } from 'lucide-react';
 import { format, differenceInMinutes, differenceInSeconds } from 'date-fns';
 import { collection, getDocs, query, where, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -13,6 +13,7 @@ export default function WorkoutScreen() {
   const { currentWorkout, setCurrentWorkout, saveWorkout, calculateTotalWeight } = useUserData();
   const navigate = useNavigate();
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  const [currentSupersetRound, setCurrentSupersetRound] = useState(1);
   const [elapsedTime, setElapsedTime] = useState('00:00');
   const [workoutRating, setWorkoutRating] = useState(8);
   const [workoutNotes, setWorkoutNotes] = useState('');
@@ -49,7 +50,6 @@ export default function WorkoutScreen() {
 
   const loadAvailableExercises = async () => {
     try {
-      // Load exercises that include the current workout's focus area
       const exercisesQuery = query(
         collection(db, 'exercises'),
         where('focusAreas', 'array-contains', currentWorkout.focusArea),
@@ -72,13 +72,47 @@ export default function WorkoutScreen() {
   useEffect(() => {
     if (showAddExercise && currentWorkout) {
       loadAvailableExercises();
-      // Set default focus area for new exercises
       setNewExercise(prev => ({
         ...prev,
         focusAreas: [currentWorkout.focusArea]
       }));
     }
   }, [showAddExercise, currentWorkout]);
+
+  // Get current superset info
+  const getCurrentSuperset = () => {
+    if (!currentWorkout?.supersets) return null;
+    
+    const currentExercise = currentWorkout.exercises[currentExerciseIndex];
+    if (!currentExercise?.supersetId) return null;
+    
+    return currentWorkout.supersets.find(ss => ss.id === currentExercise.supersetId);
+  };
+
+  // Get exercises in current superset
+  const getSupersetExercises = (superset) => {
+    if (!superset) return [];
+    return superset.exerciseIds
+      .map(id => currentWorkout.exercises.find(ex => ex.id === id))
+      .filter(Boolean);
+  };
+
+  // Check if we're in a superset and what position
+  const getSupersetPosition = () => {
+    const superset = getCurrentSuperset();
+    if (!superset) return null;
+    
+    const currentExercise = currentWorkout.exercises[currentExerciseIndex];
+    const position = superset.exerciseIds.indexOf(currentExercise.id);
+    const isLastInSuperset = position === superset.exerciseIds.length - 1;
+    
+    return {
+      superset,
+      position,
+      isLastInSuperset,
+      exerciseCount: superset.exerciseIds.length
+    };
+  };
 
   const updateSet = (exerciseIndex, setIndex, field, value) => {
     const updatedWorkout = { ...currentWorkout };
@@ -129,6 +163,7 @@ export default function WorkoutScreen() {
       category: exercise.category,
       focusAreas: exercise.focusAreas,
       isCardio: isCardio,
+      supersetId: null,
       sets: isCardio ? [
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
@@ -169,13 +204,9 @@ export default function WorkoutScreen() {
       };
 
       const docRef = await addDoc(collection(db, 'exercises'), exerciseData);
-      console.log('New exercise added with ID:', docRef.id);
-
-      // Add to local state and immediately add to workout
       const newExerciseWithId = { id: docRef.id, ...exerciseData };
       setAvailableExercises(prev => [...prev, newExerciseWithId].sort((a, b) => a.name.localeCompare(b.name)));
 
-      // Reset form
       setNewExercise({
         name: '',
         category: 'compound',
@@ -185,8 +216,6 @@ export default function WorkoutScreen() {
       });
       
       setShowAddNewExercise(false);
-      
-      // Automatically add the new exercise to the workout
       addExerciseToWorkout(newExerciseWithId);
       
       alert('Exercise added to inventory and workout!');
@@ -210,7 +239,6 @@ export default function WorkoutScreen() {
       const updatedWorkout = { ...currentWorkout };
       updatedWorkout.exercises.splice(exerciseIndex, 1);
       
-      // Adjust current exercise index if needed
       if (currentExerciseIndex >= updatedWorkout.exercises.length && updatedWorkout.exercises.length > 0) {
         setCurrentExerciseIndex(updatedWorkout.exercises.length - 1);
       } else if (updatedWorkout.exercises.length === 0) {
@@ -222,10 +250,43 @@ export default function WorkoutScreen() {
   };
 
   const nextExercise = () => {
-    if (currentExerciseIndex < currentWorkout.exercises.length - 1) {
-      setCurrentExerciseIndex(currentExerciseIndex + 1);
+    const supersetInfo = getSupersetPosition();
+    
+    if (supersetInfo) {
+      // We're in a superset
+      if (supersetInfo.isLastInSuperset) {
+        // Completed all exercises in this round of the superset
+        if (currentSupersetRound < supersetInfo.superset.sets) {
+          // Move to next round, go back to first exercise in superset
+          setCurrentSupersetRound(prev => prev + 1);
+          const firstExerciseIndex = currentWorkout.exercises.findIndex(
+            ex => ex.id === supersetInfo.superset.exerciseIds[0]
+          );
+          setCurrentExerciseIndex(firstExerciseIndex);
+        } else {
+          // Completed all rounds of superset, move to next non-superset exercise
+          setCurrentSupersetRound(1);
+          const nextIndex = currentExerciseIndex + 1;
+          if (nextIndex < currentWorkout.exercises.length) {
+            setCurrentExerciseIndex(nextIndex);
+          } else {
+            setShowWorkoutComplete(true);
+          }
+        }
+      } else {
+        // Move to next exercise in current superset round
+        const nextExerciseId = supersetInfo.superset.exerciseIds[supersetInfo.position + 1];
+        const nextIndex = currentWorkout.exercises.findIndex(ex => ex.id === nextExerciseId);
+        setCurrentExerciseIndex(nextIndex);
+      }
     } else {
-      setShowWorkoutComplete(true);
+      // Regular exercise, move to next
+      if (currentExerciseIndex < currentWorkout.exercises.length - 1) {
+        setCurrentExerciseIndex(currentExerciseIndex + 1);
+        setCurrentSupersetRound(1); // Reset for potential next superset
+      } else {
+        setShowWorkoutComplete(true);
+      }
     }
   };
 
@@ -251,16 +312,8 @@ export default function WorkoutScreen() {
     }
   };
 
-  // Focus areas in alphabetical order
   const FOCUS_AREAS = [
-    'Back',
-    'Biceps/Triceps', 
-    'Cardio',
-    'Chest',
-    'Legs',
-    'Pull',
-    'Push',
-    'Shoulders'
+    'Back', 'Biceps/Triceps', 'Cardio', 'Chest', 'Legs', 'Pull', 'Push', 'Shoulders'
   ];
 
   const filteredExercises = availableExercises.filter(exercise =>
@@ -500,6 +553,14 @@ export default function WorkoutScreen() {
             </div>
           </div>
           
+          {currentWorkout.supersets && currentWorkout.supersets.length > 0 && (
+            <div className="mb-6 p-3 bg-purple-50 border-2 border-purple-200 rounded-lg">
+              <div className="text-sm text-purple-800">
+                🔗 Completed {currentWorkout.supersets.length} superset{currentWorkout.supersets.length !== 1 ? 's' : ''}!
+              </div>
+            </div>
+          )}
+          
           <div className="text-sm text-secondary-600 mb-3">Rate your workout</div>
           <div className="flex items-center justify-center gap-2 mb-4">
             {[1,2,3,4,5,6,7,8,9,10].map(num => (
@@ -545,6 +606,8 @@ export default function WorkoutScreen() {
   const currentExercise = currentWorkout.exercises[currentExerciseIndex];
   if (!currentExercise) return null;
 
+  const supersetInfo = getSupersetPosition();
+
   return (
     <div className="p-4 max-w-md mx-auto space-y-4">
       {/* Header */}
@@ -571,10 +634,49 @@ export default function WorkoutScreen() {
         </div>
       </Card>
 
+      {/* Superset Info */}
+      {supersetInfo && (
+        <Card className="p-4 bg-purple-50 border-2 border-purple-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Link className="h-4 w-4 text-purple-600 mr-2" />
+              <span className="font-medium text-purple-900">
+                {supersetInfo.superset.name}
+              </span>
+            </div>
+            <div className="text-sm text-purple-700">
+              Round {currentSupersetRound} of {supersetInfo.superset.sets}
+            </div>
+          </div>
+          
+          <div className="mt-2 flex items-center gap-2">
+            {getSupersetExercises(supersetInfo.superset).map((exercise, index) => (
+              <div key={exercise.id} className="flex items-center">
+                <span className={`text-sm px-2 py-1 rounded ${
+                  exercise.id === currentExercise.id 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-purple-200 text-purple-700'
+                }`}>
+                  {exercise.name}
+                </span>
+                {index < supersetInfo.exerciseCount - 1 && (
+                  <ArrowRight className="h-3 w-3 text-purple-600 mx-1" />
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Current Exercise */}
       <Card className="p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-secondary-900">
+            {supersetInfo && (
+              <span className="text-purple-600 mr-2 text-lg">
+                {supersetInfo.position + 1}.
+              </span>
+            )}
             {currentExercise.name}
             {currentExercise.isCardio && (
               <span className="ml-2 text-sm bg-green-100 text-green-700 px-2 py-1 rounded">
@@ -596,8 +698,7 @@ export default function WorkoutScreen() {
             <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
                 <div className="text-sm text-secondary-600">
-                  Set {setIndex + 1}
-                  {/* Show planned values if they exist */}
+                  {supersetInfo ? 'Round' : 'Set'} {setIndex + 1}
                   {!currentExercise.isCardio && set.weight && set.reps && (
                     <span className="text-primary-600 ml-2">
                       (Planned: {set.weight} × {set.reps})
@@ -703,7 +804,17 @@ export default function WorkoutScreen() {
         />
         
         <Button onClick={nextExercise} className="w-full mt-4">
-          {currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'}
+          {supersetInfo ? (
+            supersetInfo.isLastInSuperset ? (
+              currentSupersetRound < supersetInfo.superset.sets ? 
+                `Next Round (${currentSupersetRound + 1}/${supersetInfo.superset.sets})` : 
+                'Next Exercise'
+            ) : (
+              `Next in Superset`
+            )
+          ) : (
+            currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'
+          )}
         </Button>
       </Card>
 
@@ -711,21 +822,36 @@ export default function WorkoutScreen() {
       <Card className="p-4">
         <div className="text-sm text-secondary-600 mb-3">Exercises</div>
         <div className="flex gap-2 overflow-x-auto">
-          {currentWorkout.exercises.map((exercise, index) => (
-            <button
-              key={exercise.id}
-              onClick={() => setCurrentExerciseIndex(index)}
-              className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium ${
-                index === currentExerciseIndex
-                  ? 'bg-primary-500 text-white'
-                  : index < currentExerciseIndex
-                  ? 'bg-green-500 text-white'
-                  : 'bg-secondary-200 text-secondary-700'
-              }`}
-            >
-              {exercise.name}
-            </button>
-          ))}
+          {currentWorkout.exercises.map((exercise, index) => {
+            const exerciseSuperset = currentWorkout.supersets?.find(ss => ss.exerciseIds.includes(exercise.id));
+            const isInSuperset = !!exerciseSuperset;
+            
+            return (
+              <button
+                key={exercise.id}
+                onClick={() => {
+                  setCurrentExerciseIndex(index);
+                  setCurrentSupersetRound(1); // Reset superset round when jumping to exercise
+                }}
+                className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium ${
+                  index === currentExerciseIndex
+                    ? isInSuperset 
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-primary-500 text-white'
+                    : index < currentExerciseIndex
+                    ? 'bg-green-500 text-white'
+                    : isInSuperset
+                    ? 'bg-purple-200 text-purple-700'
+                    : 'bg-secondary-200 text-secondary-700'
+                } ${isInSuperset ? 'border-2 border-purple-300' : ''}`}
+              >
+                {isInSuperset && (
+                  <Link className="h-3 w-3 inline mr-1" />
+                )}
+                {exercise.name}
+              </button>
+            );
+          })}
         </div>
       </Card>
     </div>
