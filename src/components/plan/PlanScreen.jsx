@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Plus, Calendar, X, Tag } from 'lucide-react';
+import { Plus, Calendar, X, Tag, Trash2, Edit } from 'lucide-react';
 import { format } from 'date-fns';
-import { collection, addDoc, getDocs, query, where, orderBy, arrayContains } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, where, orderBy, arrayContains, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 // Focus areas in alphabetical order
@@ -30,7 +30,7 @@ const EXERCISE_CATEGORIES = [
 ];
 
 export default function PlanScreen() {
-  const { setCurrentWorkout } = useUserData();
+  const { setCurrentWorkout, deleteExercise } = useUserData();
   const navigate = useNavigate();
   const [workoutPlan, setWorkoutPlan] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -45,6 +45,7 @@ export default function PlanScreen() {
   const [showAddNewExercise, setShowAddNewExercise] = useState(false);
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingExerciseId, setEditingExerciseId] = useState(null);
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
@@ -94,21 +95,48 @@ export default function PlanScreen() {
     }
 
     try {
-      const exerciseData = {
-        ...newExercise,
-        name: newExercise.name.trim(),
-        focusAreas: newExercise.focusAreas, // Array of focus areas
-        createdAt: new Date(),
-        isCustom: true
-      };
+      if (editingExerciseId) {
+        // Update existing exercise
+        const exerciseData = {
+          ...newExercise,
+          name: newExercise.name.trim(),
+          focusAreas: newExercise.focusAreas,
+          updatedAt: new Date()
+        };
 
-      const docRef = await addDoc(collection(db, 'exercises'), exerciseData);
-      console.log('New exercise added with ID:', docRef.id);
+        await updateDoc(doc(db, 'exercises', editingExerciseId), exerciseData);
+        console.log('Exercise updated with ID:', editingExerciseId);
 
-      // Add to local state if it includes current focus area
-      if (newExercise.focusAreas.includes(workoutPlan.focusArea)) {
-        const newExerciseWithId = { id: docRef.id, ...exerciseData };
-        setAvailableExercises(prev => [...prev, newExerciseWithId].sort((a, b) => a.name.localeCompare(b.name)));
+        // Update local state
+        setAvailableExercises(prev => 
+          prev.map(ex => 
+            ex.id === editingExerciseId 
+              ? { id: editingExerciseId, ...exerciseData }
+              : ex
+          ).sort((a, b) => a.name.localeCompare(b.name))
+        );
+
+        alert('Exercise updated successfully!');
+      } else {
+        // Create new exercise
+        const exerciseData = {
+          ...newExercise,
+          name: newExercise.name.trim(),
+          focusAreas: newExercise.focusAreas,
+          createdAt: new Date(),
+          isCustom: true
+        };
+
+        const docRef = await addDoc(collection(db, 'exercises'), exerciseData);
+        console.log('New exercise added with ID:', docRef.id);
+
+        // Add to local state if it includes current focus area
+        if (newExercise.focusAreas.includes(workoutPlan.focusArea)) {
+          const newExerciseWithId = { id: docRef.id, ...exerciseData };
+          setAvailableExercises(prev => [...prev, newExerciseWithId].sort((a, b) => a.name.localeCompare(b.name)));
+        }
+
+        alert('Exercise added successfully!');
       }
 
       // Reset form
@@ -120,12 +148,40 @@ export default function PlanScreen() {
         instructions: ''
       });
       
+      setEditingExerciseId(null);
       setShowAddNewExercise(false);
-      alert('Exercise added successfully!');
     } catch (error) {
-      console.error('Error adding new exercise:', error);
-      alert('Error adding exercise: ' + error.message);
+      console.error('Error saving exercise:', error);
+      alert('Error saving exercise: ' + error.message);
     }
+  };
+
+  const handleDeleteExercise = async (exerciseId, exerciseName) => {
+    if (confirm(`Are you sure you want to delete "${exerciseName}"? This action cannot be undone.`)) {
+      try {
+        await deleteExercise(exerciseId);
+        
+        // Remove from local state
+        setAvailableExercises(prev => prev.filter(ex => ex.id !== exerciseId));
+        
+        alert('Exercise deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting exercise:', error);
+        alert('Error deleting exercise: ' + error.message);
+      }
+    }
+  };
+
+  const handleEditExercise = (exercise) => {
+    setEditingExerciseId(exercise.id);
+    setNewExercise({
+      name: exercise.name,
+      category: exercise.category,
+      focusAreas: exercise.focusAreas || [workoutPlan.focusArea],
+      description: exercise.description || '',
+      instructions: exercise.instructions || ''
+    });
+    setShowAddNewExercise(true);
   };
 
   const toggleFocusArea = (focusArea) => {
@@ -209,9 +265,21 @@ export default function PlanScreen() {
       <div className="p-4 max-w-md mx-auto">
         <Card className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-secondary-900">Add New Exercise</h2>
+            <h2 className="text-xl font-bold text-secondary-900">
+              {editingExerciseId ? 'Edit Exercise' : 'Add New Exercise'}
+            </h2>
             <button
-              onClick={() => setShowAddNewExercise(false)}
+              onClick={() => {
+                setShowAddNewExercise(false);
+                setEditingExerciseId(null);
+                setNewExercise({
+                  name: '',
+                  category: 'compound',
+                  focusAreas: [workoutPlan.focusArea],
+                  description: '',
+                  instructions: ''
+                });
+              }}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <X className="h-5 w-5" />
@@ -292,11 +360,21 @@ export default function PlanScreen() {
             
             <div className="flex gap-3 pt-4">
               <Button onClick={handleAddNewExercise} className="flex-1">
-                Add Exercise
+                {editingExerciseId ? 'Update Exercise' : 'Add Exercise'}
               </Button>
               <Button 
                 variant="secondary" 
-                onClick={() => setShowAddNewExercise(false)}
+                onClick={() => {
+                  setShowAddNewExercise(false);
+                  setEditingExerciseId(null);
+                  setNewExercise({
+                    name: '',
+                    category: 'compound',
+                    focusAreas: [workoutPlan.focusArea],
+                    description: '',
+                    instructions: ''
+                  });
+                }}
                 className="flex-1"
               >
                 Cancel
@@ -339,16 +417,7 @@ export default function PlanScreen() {
                 <div className="flex justify-between items-start">
                   <div 
                     className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                    onClick={() => {
-                      setNewExercise({
-                        name: exercise.name,
-                        category: exercise.category,
-                        focusAreas: exercise.focusAreas || [workoutPlan.focusArea],
-                        description: exercise.description || '',
-                        instructions: exercise.instructions || ''
-                      });
-                      setShowAddNewExercise(true);
-                    }}
+                    onClick={() => handleEditExercise(exercise)}
                   >
                     <div className="font-medium text-secondary-900">{exercise.name}</div>
                     <div className="text-xs text-secondary-500 capitalize">
@@ -367,9 +436,20 @@ export default function PlanScreen() {
                       ))}
                     </div>
                   </div>
-                  <Button size="sm" onClick={() => addExerciseToWorkout(exercise)}>
-                    + Add
-                  </Button>
+                  <div className="flex gap-2 ml-2">
+                    <Button size="sm" onClick={() => addExerciseToWorkout(exercise)}>
+                      + Add
+                    </Button>
+                    {exercise.isCustom && (
+                      <button
+                        onClick={() => handleDeleteExercise(exercise.id, exercise.name)}
+                        className="p-1 text-red-600 hover:bg-red-100 rounded"
+                        title="Delete exercise"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
