@@ -234,20 +234,21 @@ async function deleteWorkout(workoutId) {
     return filtered.length > 0 ? filtered[0] : null;
   }
 
-  // Calculate total weight lifted in a workout
-  function calculateTotalWeight(exercises) {
-    return exercises.reduce((total, exercise) => {
-      if (exercise.category === 'cardio' || exercise.category === 'abs') {
-        return total;
-      }
-      
-      return total + exercise.sets.reduce((setTotal, set) => {
-        const weight = parseFloat(set.weight) || 0;
-        const reps = parseInt(set.reps) || 0;
-        return setTotal + (weight * reps);
-      }, 0);
+// Calculate total weight lifted in a workout (excluding cardio)
+function calculateTotalWeight(exercises) {
+  return exercises.reduce((total, exercise) => {
+    // Skip cardio exercises in weight calculation
+    if (exercise.isCardio || exercise.category === 'cardio') {
+      return total;
+    }
+    
+    return total + exercise.sets.reduce((setTotal, set) => {
+      const weight = parseFloat(set.actualWeight || set.weight) || 0;
+      const reps = parseInt(set.actualReps || set.reps) || 0;
+      return setTotal + (weight * reps);
     }, 0);
-  }
+  }, 0);
+}
 
   const value = {
     userProfile,
