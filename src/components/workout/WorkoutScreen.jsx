@@ -6,7 +6,7 @@ import Input from '../ui/Input';
 import Card from '../ui/Card';
 import { Clock, Check, Edit, Plus, Minus, X, Search, Link, ArrowRight } from 'lucide-react';
 import { format, differenceInMinutes, differenceInSeconds } from 'date-fns';
-import { collection, getDocs, query, where, orderBy, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
 export default function WorkoutScreen() {
@@ -167,10 +167,8 @@ export default function WorkoutScreen() {
       sets: isCardio ? [
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
-        { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false }
       ] : [
-        { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false }
@@ -256,7 +254,7 @@ export default function WorkoutScreen() {
       // We're in a superset
       if (supersetInfo.isLastInSuperset) {
         // Completed all exercises in this round of the superset
-        if (currentSupersetRound < supersetInfo.superset.sets) {
+        if (currentSupersetRound < supersetInfo.superset.rounds) {
           // Move to next round, go back to first exercise in superset
           setCurrentSupersetRound(prev => prev + 1);
           const firstExerciseIndex = currentWorkout.exercises.findIndex(
@@ -266,8 +264,8 @@ export default function WorkoutScreen() {
         } else {
           // Completed all rounds of superset, move to next non-superset exercise
           setCurrentSupersetRound(1);
-          const nextIndex = currentExerciseIndex + 1;
-          if (nextIndex < currentWorkout.exercises.length) {
+          const nextIndex = findNextNonSupersetExercise();
+          if (nextIndex !== -1) {
             setCurrentExerciseIndex(nextIndex);
           } else {
             setShowWorkoutComplete(true);
@@ -288,6 +286,20 @@ export default function WorkoutScreen() {
         setShowWorkoutComplete(true);
       }
     }
+  };
+
+  // Find the next exercise that's not part of the current superset
+  const findNextNonSupersetExercise = () => {
+    const currentSuperset = getCurrentSuperset();
+    if (!currentSuperset) return currentExerciseIndex + 1;
+    
+    for (let i = currentExerciseIndex + 1; i < currentWorkout.exercises.length; i++) {
+      const exercise = currentWorkout.exercises[i];
+      if (!exercise.supersetId || exercise.supersetId !== currentSuperset.id) {
+        return i;
+      }
+    }
+    return -1; // No more exercises
   };
 
   const finishWorkout = async () => {
@@ -634,36 +646,34 @@ export default function WorkoutScreen() {
         </div>
       </Card>
 
-      {/* Superset Info */}
+      {/* Superset Info - Clear and Prominent */}
       {supersetInfo && (
         <Card className="p-4 bg-purple-50 border-2 border-purple-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Link className="h-4 w-4 text-purple-600 mr-2" />
-              <span className="font-medium text-purple-900">
-                {supersetInfo.superset.name}
-              </span>
+          <div className="text-center">
+            <div className="font-bold text-purple-900 text-lg mb-2">
+              🔗 {supersetInfo.superset.name}
             </div>
-            <div className="text-sm text-purple-700">
-              Round {currentSupersetRound} of {supersetInfo.superset.sets}
+            <div className="text-purple-700 font-medium text-lg mb-3">
+              Round {currentSupersetRound} of {supersetInfo.superset.rounds}
             </div>
-          </div>
-          
-          <div className="mt-2 flex items-center gap-2">
-            {getSupersetExercises(supersetInfo.superset).map((exercise, index) => (
-              <div key={exercise.id} className="flex items-center">
-                <span className={`text-sm px-2 py-1 rounded ${
-                  exercise.id === currentExercise.id 
-                    ? 'bg-purple-600 text-white' 
-                    : 'bg-purple-200 text-purple-700'
-                }`}>
-                  {exercise.name}
-                </span>
-                {index < supersetInfo.exerciseCount - 1 && (
-                  <ArrowRight className="h-3 w-3 text-purple-600 mx-1" />
-                )}
-              </div>
-            ))}
+            
+            {/* Exercise sequence display */}
+            <div className="flex items-center justify-center gap-2 overflow-x-auto">
+              {getSupersetExercises(supersetInfo.superset).map((exercise, index) => (
+                <div key={exercise.id} className="flex items-center flex-shrink-0">
+                  <span className={`text-sm px-3 py-2 rounded-full font-medium ${
+                    exercise.id === currentExercise.id 
+                      ? 'bg-purple-600 text-white' 
+                      : 'bg-purple-200 text-purple-700'
+                  }`}>
+                    {index + 1}. {exercise.name}
+                  </span>
+                  {index < supersetInfo.exerciseCount - 1 && (
+                    <ArrowRight className="h-4 w-4 text-purple-600 mx-2 flex-shrink-0" />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}
@@ -692,105 +702,123 @@ export default function WorkoutScreen() {
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Show current set we're working on for superset */}
+        {supersetInfo && (
+          <div className="mb-4 p-3 bg-purple-100 rounded-lg">
+            <div className="text-center text-purple-800 font-medium">
+              Working Set: {currentSupersetRound}
+            </div>
+          </div>
+        )}
         
         <div className="space-y-4">
-          {currentExercise.sets.map((set, setIndex) => (
-            <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
-              <div className="flex justify-between items-center mb-2">
-                <div className="text-sm text-secondary-600">
-                  {supersetInfo ? 'Round' : 'Set'} {setIndex + 1}
-                  {!currentExercise.isCardio && set.weight && set.reps && (
-                    <span className="text-primary-600 ml-2">
-                      (Planned: {set.weight} × {set.reps})
-                    </span>
+          {currentExercise.sets.map((set, setIndex) => {
+            // For supersets, only show the current round's set
+            const isCurrentSet = supersetInfo ? setIndex === currentSupersetRound - 1 : true;
+            
+            if (supersetInfo && !isCurrentSet) return null;
+            
+            return (
+              <div key={setIndex} className="border-2 border-secondary-200 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-2">
+                  <div className="text-sm text-secondary-600">
+                    {supersetInfo ? `Round ${currentSupersetRound}` : `Set ${setIndex + 1}`}
+                    {!currentExercise.isCardio && set.weight && set.reps && (
+                      <span className="text-primary-600 ml-2">
+                        (Planned: {set.weight} × {set.reps})
+                      </span>
+                    )}
+                  </div>
+                  {!supersetInfo && currentExercise.sets.length > 1 && (
+                    <button
+                      onClick={() => removeSetFromExercise(currentExerciseIndex, setIndex)}
+                      className="p-1 text-red-600 hover:bg-red-100 rounded"
+                      title="Remove set"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
                   )}
                 </div>
-                {currentExercise.sets.length > 1 && (
-                  <button
-                    onClick={() => removeSetFromExercise(currentExerciseIndex, setIndex)}
-                    className="p-1 text-red-600 hover:bg-red-100 rounded"
-                    title="Remove set"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                )}
-              </div>
-              
-              {currentExercise.isCardio ? (
-                // Cardio Exercise Logging
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      placeholder="Distance (mi)"
-                      value={set.actualDistance || set.distance || ''}
-                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDistance', e.target.value)}
-                    />
-                    <Input
-                      placeholder="Duration (min)"
-                      value={set.actualDuration || set.duration || ''}
-                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDuration', e.target.value)}
-                    />
+                
+                {currentExercise.isCardio ? (
+                  // Cardio Exercise Logging
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        placeholder="Distance (mi)"
+                        value={set.actualDistance || set.distance || ''}
+                        onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDistance', e.target.value)}
+                      />
+                      <Input
+                        placeholder="Duration (min)"
+                        value={set.actualDuration || set.duration || ''}
+                        onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualDuration', e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        placeholder="Floors Climbed"
+                        value={set.actualFloorsClimbed || set.floorsClimbed || ''}
+                        onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualFloorsClimbed', e.target.value)}
+                      />
+                      <Input
+                        placeholder="Weighted Vest (lbs)"
+                        value={set.actualWeightedVest || set.weightedVest || ''}
+                        onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeightedVest', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-center">
+                      <Button
+                        variant={set.completed ? 'primary' : 'outline'}
+                        size="sm"
+                        onClick={() => completeSet(currentExerciseIndex, setIndex)}
+                        disabled={set.completed}
+                      >
+                        {set.completed ? '✓ Completed' : 'Complete Set'}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                ) : (
+                  // Regular Exercise Logging
+                  <div className="flex items-center gap-3">
                     <Input
-                      placeholder="Floors Climbed"
-                      value={set.actualFloorsClimbed || set.floorsClimbed || ''}
-                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualFloorsClimbed', e.target.value)}
+                      placeholder="Weight"
+                      value={set.actualWeight || set.weight || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
+                      className="flex-1"
                     />
                     <Input
-                      placeholder="Weighted Vest (lbs)"
-                      value={set.actualWeightedVest || set.weightedVest || ''}
-                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeightedVest', e.target.value)}
+                      placeholder="Reps"
+                      value={set.actualReps || set.reps || ''}
+                      onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
+                      className="flex-1"
                     />
-                  </div>
-                  <div className="flex justify-center">
                     <Button
                       variant={set.completed ? 'primary' : 'outline'}
                       size="sm"
                       onClick={() => completeSet(currentExerciseIndex, setIndex)}
                       disabled={set.completed}
                     >
-                      {set.completed ? '✓ Completed' : 'Complete Set'}
+                      {set.completed ? <Check className="h-4 w-4" /> : '✓'}
                     </Button>
                   </div>
-                </div>
-              ) : (
-                // Regular Exercise Logging
-                <div className="flex items-center gap-3">
-                  <Input
-                    placeholder="Weight"
-                    value={set.actualWeight || set.weight || ''}
-                    onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualWeight', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Input
-                    placeholder="Reps"
-                    value={set.actualReps || set.reps || ''}
-                    onChange={(e) => updateSet(currentExerciseIndex, setIndex, 'actualReps', e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant={set.completed ? 'primary' : 'outline'}
-                    size="sm"
-                    onClick={() => completeSet(currentExerciseIndex, setIndex)}
-                    disabled={set.completed}
-                  >
-                    {set.completed ? <Check className="h-4 w-4" /> : '✓'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
         
-        <Button 
-          onClick={() => addSetToExercise(currentExerciseIndex)}
-          variant="secondary"
-          className="w-full mt-4 flex items-center justify-center"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Set
-        </Button>
+        {!supersetInfo && (
+          <Button 
+            onClick={() => addSetToExercise(currentExerciseIndex)}
+            variant="secondary"
+            className="w-full mt-4 flex items-center justify-center"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Set
+          </Button>
+        )}
         
         <Input
           placeholder="Exercise notes..."
@@ -806,11 +834,11 @@ export default function WorkoutScreen() {
         <Button onClick={nextExercise} className="w-full mt-4">
           {supersetInfo ? (
             supersetInfo.isLastInSuperset ? (
-              currentSupersetRound < supersetInfo.superset.sets ? 
-                `Next Round (${currentSupersetRound + 1}/${supersetInfo.superset.sets})` : 
+              currentSupersetRound < supersetInfo.superset.rounds ? 
+                `Next Round (${currentSupersetRound + 1}/${supersetInfo.superset.rounds})` : 
                 'Next Exercise'
             ) : (
-              `Next in Superset`
+              `Next: ${getSupersetExercises(supersetInfo.superset)[supersetInfo.position + 1]?.name}`
             )
           ) : (
             currentExerciseIndex < currentWorkout.exercises.length - 1 ? 'Next Exercise' : 'Finish Workout'
@@ -831,7 +859,17 @@ export default function WorkoutScreen() {
                 key={exercise.id}
                 onClick={() => {
                   setCurrentExerciseIndex(index);
-                  setCurrentSupersetRound(1); // Reset superset round when jumping to exercise
+                  // If clicking on a superset exercise, determine the correct round
+                  if (exerciseSuperset) {
+                    const exercisePosition = exerciseSuperset.exerciseIds.indexOf(exercise.id);
+                    // Keep current round if clicking within same superset, reset if different
+                    const currentSuperset = getCurrentSuperset();
+                    if (!currentSuperset || currentSuperset.id !== exerciseSuperset.id) {
+                      setCurrentSupersetRound(1);
+                    }
+                  } else {
+                    setCurrentSupersetRound(1);
+                  }
                 }}
                 className={`flex-shrink-0 px-3 py-2 rounded-lg text-sm font-medium ${
                   index === currentExerciseIndex
