@@ -213,6 +213,18 @@ async function deleteWorkout(workoutId) {
   }
 }
 
+async function deleteExercise(exerciseId) {
+  if (!currentUser) return;
+
+  try {
+    await deleteDoc(doc(db, 'exercises', exerciseId));
+    console.log('Exercise deleted successfully');
+  } catch (error) {
+    console.error('Error deleting exercise:', error);
+    throw error;
+  }
+}
+
   // Calculate age from date of birth
   function calculateAge(dateOfBirth) {
     if (!dateOfBirth) return null;
@@ -264,6 +276,7 @@ function calculateTotalWeight(exercises) {
     saveWorkout,
     updateWorkout,
     deleteWorkout,
+    deleteExercise,
     setCurrentWorkout,
     calculateAge,
     getLatestMeasurement,
