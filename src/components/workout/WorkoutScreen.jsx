@@ -158,28 +158,45 @@ export default function WorkoutScreen() {
     }
   };
 
-  const finishWorkout = async () => {
-    if (!currentWorkout) return;
+const finishWorkout = async () => {
+  if (!currentWorkout) return;
 
-    const completedWorkout = {
-      ...currentWorkout,
-      endTime: new Date(),
-      duration: differenceInMinutes(new Date(), currentWorkout.startTime),
-      rating: workoutRating,
-      notes: workoutNotes,
-      totalWeight: calculateTotalWeight(currentWorkout.exercises),
-      status: 'completed'
-    };
+  // Process exercises to ensure we have the actual values
+  const processedExercises = currentWorkout.exercises.map(exercise => ({
+    ...exercise,
+    sets: exercise.sets.map(set => ({
+      ...set,
+      // For regular exercises, use actual values or fall back to planned values
+      weight: set.actualWeight || set.weight || '',
+      reps: set.actualReps || set.reps || '',
+      // For cardio exercises
+      distance: set.actualDistance || set.distance || '',
+      duration: set.actualDuration || set.duration || '',
+      floorsClimbed: set.actualFloorsClimbed || set.floorsClimbed || '',
+      weightedVest: set.actualWeightedVest || set.weightedVest || ''
+    }))
+  }));
 
-    try {
-      await saveWorkout(completedWorkout);
-      setCurrentWorkout(null);
-      navigate('/progress');
-    } catch (error) {
-      console.error('Error saving workout:', error);
-    }
+  const completedWorkout = {
+    ...currentWorkout,
+    exercises: processedExercises,
+    endTime: new Date(),
+    duration: differenceInMinutes(new Date(), currentWorkout.startTime),
+    rating: workoutRating,
+    notes: workoutNotes,
+    totalWeight: calculateTotalWeight(processedExercises),
+    status: 'completed'
   };
 
+  try {
+    await saveWorkout(completedWorkout);
+    setCurrentWorkout(null);
+    navigate('/progress');
+  } catch (error) {
+    console.error('Error saving workout:', error);
+  }
+};
+  
   const filteredExercises = availableExercises.filter(exercise =>
     exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
     !currentWorkout.exercises.some(ex => ex.name === exercise.name)
