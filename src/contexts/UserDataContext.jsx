@@ -213,6 +213,79 @@ async function deleteWorkout(workoutId) {
   }
 }
 
+async function saveScheduledWorkout(workoutData) {
+  if (!currentUser) return;
+
+  try {
+    const docRef = await addDoc(collection(db, 'scheduledWorkouts'), {
+      ...workoutData,
+      userId: currentUser.uid,
+      createdAt: new Date(),
+      status: 'scheduled'
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error saving scheduled workout:', error);
+    throw error;
+  }
+}
+
+async function getScheduledWorkouts() {
+  if (!currentUser) return [];
+
+  try {
+    const workoutsQuery = query(
+      collection(db, 'scheduledWorkouts'),
+      where('userId', '==', currentUser.uid),
+      where('status', '==', 'scheduled'),
+      orderBy('date', 'asc')
+    );
+    const workoutsSnapshot = await getDocs(workoutsQuery);
+    
+    return workoutsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+  } catch (error) {
+    console.error('Error loading scheduled workouts:', error);
+    return [];
+  }
+}
+
+async function deleteScheduledWorkout(workoutId) {
+  if (!currentUser) return;
+
+  try {
+    await deleteDoc(doc(db, 'scheduledWorkouts', workoutId));
+    console.log('Scheduled workout deleted successfully');
+  } catch (error) {
+    console.error('Error deleting scheduled workout:', error);
+    throw error;
+  }
+}
+
+async function startScheduledWorkout(scheduledWorkout) {
+  if (!currentUser) return;
+
+  try {
+    // Mark the scheduled workout as started
+    await updateDoc(doc(db, 'scheduledWorkouts', scheduledWorkout.id), {
+      status: 'started',
+      startedAt: new Date()
+    });
+    
+    // Return the workout data for the active workout
+    return {
+      ...scheduledWorkout,
+      startTime: new Date(),
+      status: 'active'
+    };
+  } catch (error) {
+    console.error('Error starting scheduled workout:', error);
+    throw error;
+  }
+}
+
 async function deleteExercise(exerciseId) {
   if (!currentUser) return;
 
@@ -276,6 +349,10 @@ function calculateTotalWeight(exercises) {
     saveWorkout,
     updateWorkout,
     deleteWorkout,
+    saveScheduledWorkout,
+    getScheduledWorkouts,
+    deleteScheduledWorkout,
+    startScheduledWorkout,
     deleteExercise,
     setCurrentWorkout,
     calculateAge,
