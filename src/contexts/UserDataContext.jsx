@@ -10,6 +10,7 @@ import {
   orderBy, 
   where,
   updateDoc,
+  deleteDoc,
   onSnapshot 
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
@@ -145,6 +146,33 @@ async function addMeasurement(measurementData) {
   }
 }
 
+async function updateMeasurement(measurementId, measurementData) {
+  if (!currentUser) return;
+
+  try {
+    await updateDoc(doc(db, 'measurements', measurementId), {
+      ...measurementData,
+      updatedAt: new Date()
+    });
+    console.log('Measurement updated successfully');
+  } catch (error) {
+    console.error('Error updating measurement:', error);
+    throw error;
+  }
+}
+
+async function deleteMeasurement(measurementId) {
+  if (!currentUser) return;
+
+  try {
+    await deleteDoc(doc(db, 'measurements', measurementId));
+    console.log('Measurement deleted successfully');
+  } catch (error) {
+    console.error('Error deleting measurement:', error);
+    throw error;
+  }
+}  
+
   async function saveWorkout(workoutData) {
     if (!currentUser) return;
 
@@ -216,6 +244,8 @@ async function addMeasurement(measurementData) {
     loading,
     updateUserProfile,
     addMeasurement,
+    updateMeasurement,
+    deleteMeasurement,
     saveWorkout,
     updateWorkout,
     setCurrentWorkout,
