@@ -477,27 +477,36 @@ export default function PlanScreen() {
               {availableForSuperset.map(exercise => (
                 <div 
                   key={exercise.id}
-                  className={`p-3 border-2 rounded-lg cursor-pointer transition-colors ${
+                  className={`p-3 border-2 rounded-lg transition-colors ${
                     selectedForSuperset.includes(exercise.id)
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-secondary-200 bg-white hover:border-primary-300'
                   }`}
-                  onClick={() => {
-                    setSelectedForSuperset(prev => 
-                      prev.includes(exercise.id)
-                        ? prev.filter(id => id !== exercise.id)
-                        : [...prev, exercise.id]
-                    );
-                  }}
                 >
                   <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={selectedForSuperset.includes(exercise.id)}
-                      onChange={() => {}}
-                      className="mr-3 w-4 h-4"
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSelectedForSuperset(prev => 
+                          prev.includes(exercise.id)
+                            ? prev.filter(id => id !== exercise.id)
+                            : [...prev, exercise.id]
+                        );
+                      }}
+                      className="mr-3 w-4 h-4 cursor-pointer"
                     />
-                    <div>
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => {
+                        setSelectedForSuperset(prev => 
+                          prev.includes(exercise.id)
+                            ? prev.filter(id => id !== exercise.id)
+                            : [...prev, exercise.id]
+                        );
+                      }}
+                    >
                       <div className="font-medium text-secondary-900">{exercise.name}</div>
                       <div className="text-sm text-secondary-600 capitalize">{exercise.category}</div>
                     </div>
