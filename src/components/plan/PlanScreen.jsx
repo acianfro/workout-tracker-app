@@ -296,7 +296,13 @@ export default function PlanScreen() {
     }
 
     try {
-      const workoutDate = new Date(workoutPlan.date + 'T12:00:00');
+      // Fix timezone issue by creating date with explicit time and timezone handling
+      const [year, month, day] = workoutPlan.date.split('-').map(Number);
+      const workoutDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Create date in local timezone at noon
+      
+      console.log('Selected date string:', workoutPlan.date);
+      console.log('Created workout date:', workoutDate);
+      console.log('Formatted for display:', format(workoutDate, 'MMMM d, yyyy'));
       
       const scheduledWorkoutData = {
         ...workoutPlan,
@@ -896,7 +902,11 @@ export default function PlanScreen() {
                   <div>Type: <span className="capitalize">{workoutPlan.type}</span></div>
                   <div>Focus: {workoutPlan.focusArea}</div>
                   <div>Exercises: {workoutPlan.exercises.length}</div>
-                  <div>Date: {format(new Date(workoutPlan.date), 'MMMM d, yyyy')}</div>
+                  <div>Date: {(() => {
+                    const [year, month, day] = workoutPlan.date.split('-').map(Number);
+                    const displayDate = new Date(year, month - 1, day);
+                    return format(displayDate, 'MMMM d, yyyy');
+                  })()}</div>
                 </div>
               </div>
               
