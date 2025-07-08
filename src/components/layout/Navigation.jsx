@@ -6,6 +6,7 @@ export default function Navigation() {
   const navItems = [
     { to: '/profile', icon: User, label: 'Profile' },
     { to: '/plan', icon: Calendar, label: 'Plan' },
+    { to: '/scheduled', icon: Calendar, label: 'Scheduled' },
     { to: '/workout', icon: Dumbbell, label: 'Workout' },
     { to: '/progress', icon: TrendingUp, label: 'Progress' },
   ];
