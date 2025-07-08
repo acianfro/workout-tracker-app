@@ -13,13 +13,17 @@ export default function ProfileScreen() {
     userProfile, 
     measurements, 
     updateUserProfile, 
-    addMeasurement, 
+    addMeasurement,
+    updateMeasurement,
+    deleteMeasurement,
     calculateAge,
     getLatestMeasurement 
   } = useUserData();
   
   const [showProfileForm, setShowProfileForm] = useState(false);
   const [showMeasurementForm, setShowMeasurementForm] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState(null);
+  const [editMeasurementData, setEditMeasurementData] = useState({});
   const [profileData, setProfileData] = useState({
     name: '',
     dateOfBirth: '',
@@ -37,25 +41,19 @@ export default function ProfileScreen() {
     notes: ''
   });
 
-useEffect(() => {
-  if (userProfile && userProfile.name) {
-    // Profile exists and has required data - show dashboard
-    setProfileData({
-      name: userProfile.name || '',
-      dateOfBirth: userProfile.dateOfBirth || '',
-      height: userProfile.height || '',
-      targetWeight: userProfile.targetWeight || '',
-      targetBodyFat: userProfile.targetBodyFat || ''
-    });
-    setShowProfileForm(false);
-  } else if (userProfile === null) {
-    // Still loading - don't show form yet
-    return;
-  } else {
-    // No profile found or incomplete profile - show setup form
-    setShowProfileForm(true);
-  }
-}, [userProfile]);
+  useEffect(() => {
+    if (userProfile) {
+      setProfileData({
+        name: userProfile.name || '',
+        dateOfBirth: userProfile.dateOfBirth || '',
+        height: userProfile.height || '',
+        targetWeight: userProfile.targetWeight || '',
+        targetBodyFat: userProfile.targetBodyFat || ''
+      });
+    } else {
+      setShowProfileForm(true);
+    }
+  }, [userProfile]);
 
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
@@ -93,6 +91,55 @@ useEffect(() => {
     } catch (error) {
       console.error('Error adding measurement:', error);
     }
+  };
+
+  const handleEditMeasurement = (measurement) => {
+    setEditingMeasurement(measurement.id);
+    setEditMeasurementData({
+      date: format(measurement.date.toDate(), 'yyyy-MM-dd'),
+      weight: measurement.weight?.toString() || '',
+      bodyFat: measurement.bodyFat?.toString() || '',
+      muscleMass: measurement.muscleMass?.toString() || '',
+      boneDensity: measurement.boneDensity?.toString() || '',
+      source: measurement.source || 'Scale',
+      notes: measurement.notes || ''
+    });
+  };
+
+  const handleUpdateMeasurement = async (measurementId) => {
+    try {
+      const dataToUpdate = {
+        date: new Date(editMeasurementData.date),
+        ...Object.fromEntries(
+          Object.entries(editMeasurementData)
+            .filter(([key, value]) => key !== 'date' && value !== '')
+            .map(([key, value]) => [key, key === 'source' || key === 'notes' ? value : parseFloat(value)])
+        )
+      };
+      
+      await updateMeasurement(measurementId, dataToUpdate);
+      setEditingMeasurement(null);
+      setEditMeasurementData({});
+    } catch (error) {
+      console.error('Error updating measurement:', error);
+      alert('Error updating measurement: ' + error.message);
+    }
+  };
+
+  const handleDeleteMeasurement = async (measurementId) => {
+    if (confirm('Are you sure you want to delete this measurement?')) {
+      try {
+        await deleteMeasurement(measurementId);
+      } catch (error) {
+        console.error('Error deleting measurement:', error);
+        alert('Error deleting measurement: ' + error.message);
+      }
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingMeasurement(null);
+    setEditMeasurementData({});
   };
 
   if (showProfileForm) {
@@ -287,19 +334,115 @@ useEffect(() => {
         </div>
       </Card>
 
-      {/* Recent Measurements */}
+      {/* Recent Measurements with Edit/Delete */}
       {measurements.length > 0 && (
         <Card className="p-6">
           <h3 className="text-lg font-bold text-secondary-900 mb-4">Recent Measurements</h3>
           <div className="space-y-3">
-            {measurements.slice(0, 3).map((measurement) => (
-              <div key={measurement.id} className="flex justify-between items-center p-3 border-2 border-secondary-200 rounded-lg bg-white">
-                <div className="font-bold text-secondary-900">
-                  {measurement.weight} lbs
-                </div>
-                <div className="text-sm text-secondary-600">
-                  {format(measurement.date.toDate(), 'MMM d')} • {measurement.source}
-                </div>
+            {measurements.slice(0, 5).map((measurement) => (
+              <div key={measurement.id}>
+                {editingMeasurement === measurement.id ? (
+                  // Edit Mode
+                  <Card className="p-4 border-2 border-primary-300 bg-primary-50">
+                    <div className="space-y-3">
+                      <Input
+                        type="date"
+                        value={editMeasurementData.date}
+                        onChange={(e) => setEditMeasurementData(prev => ({ ...prev, date: e.target.value }))}
+                      />
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Weight (lbs)"
+                          value={editMeasurementData.weight}
+                          onChange={(e) => setEditMeasurementData(prev => ({ ...prev, weight: e.target.value }))}
+                        />
+                        <Input
+                          placeholder="Body Fat %"
+                          value={editMeasurementData.bodyFat}
+                          onChange={(e) => setEditMeasurementData(prev => ({ ...prev, bodyFat: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <Input
+                          placeholder="Muscle Mass"
+                          value={editMeasurementData.muscleMass}
+                          onChange={(e) => setEditMeasurementData(prev => ({ ...prev, muscleMass: e.target.value }))}
+                        />
+                        <Input
+                          placeholder="Bone Density"
+                          value={editMeasurementData.boneDensity}
+                          onChange={(e) => setEditMeasurementData(prev => ({ ...prev, boneDensity: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <select
+                        className="w-full px-4 py-3 border-2 border-primary-300 rounded-lg focus:border-primary-500 focus:outline-none"
+                        value={editMeasurementData.source}
+                        onChange={(e) => setEditMeasurementData(prev => ({ ...prev, source: e.target.value }))}
+                      >
+                        <option value="Scale">Scale</option>
+                        <option value="DEXA">DEXA</option>
+                        <option value="InBody">InBody</option>
+                        <option value="Other">Other</option>
+                      </select>
+                      
+                      <Input
+                        placeholder="Notes"
+                        value={editMeasurementData.notes}
+                        onChange={(e) => setEditMeasurementData(prev => ({ ...prev, notes: e.target.value }))}
+                      />
+                      
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => handleUpdateMeasurement(measurement.id)}
+                          size="sm"
+                          className="flex-1"
+                        >
+                          Save
+                        </Button>
+                        <Button 
+                          onClick={cancelEdit}
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  // Display Mode
+                  <div className="flex justify-between items-center p-3 border-2 border-secondary-200 rounded-lg bg-white">
+                    <div className="flex-1">
+                      <div className="font-bold text-secondary-900">
+                        {measurement.weight && `${measurement.weight} lbs`}
+                        {measurement.weight && measurement.bodyFat && ' • '}
+                        {measurement.bodyFat && `${measurement.bodyFat}% BF`}
+                      </div>
+                      <div className="text-sm text-secondary-600">
+                        {format(measurement.date.toDate(), 'MMM d, yyyy')} • {measurement.source}
+                        {measurement.notes && ` • ${measurement.notes}`}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 ml-3">
+                      <button
+                        onClick={() => handleEditMeasurement(measurement)}
+                        className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded hover:bg-primary-200 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteMeasurement(measurement.id)}
+                        className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
