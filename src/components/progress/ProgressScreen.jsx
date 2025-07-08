@@ -440,9 +440,12 @@ export default function ProgressScreen() {
                       </span>
                     </div>
                     <div className="text-sm text-secondary-600 flex items-center gap-3">
-                      <span className="flex items-center">
+                     <span className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
-                        {format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'MMM d')}
+                        {format(
+                          workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 
+                          'MMM d, yyyy'  // Add year and use full format to be more explicit
+                        )}
                       </span>
                       <span className="flex items-center">
                         <Clock className="h-3 w-3 mr-1" />
