@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Plus, Calendar, X, Tag, Trash2, Edit } from 'lucide-react';
+import { Plus, Calendar, X, Tag, Trash2, Edit, Link, Unlink, ArrowUp, ArrowDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { collection, addDoc, getDocs, query, where, orderBy, arrayContains, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -38,7 +38,8 @@ export default function PlanScreen() {
     focusArea: 'Pull',
     motivation: 7,
     notes: '',
-    exercises: []
+    exercises: [],
+    supersets: [] // Array of superset groups
   });
   const [showExerciseSelection, setShowExerciseSelection] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(null);
@@ -48,10 +49,11 @@ export default function PlanScreen() {
   const [editingExerciseId, setEditingExerciseId] = useState(null);
   const [selectedExercises, setSelectedExercises] = useState([]); // For multi-select
   const [showScheduleOptions, setShowScheduleOptions] = useState(false);
+  const [selectedForSuperset, setSelectedForSuperset] = useState([]); // For superset creation
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
-    focusAreas: ['Pull'], // Array of focus areas
+    focusAreas: ['Pull'], 
     description: '',
     instructions: ''
   });
@@ -65,7 +67,6 @@ export default function PlanScreen() {
 
   const loadExercises = async () => {
     try {
-      // Load exercises that include the current focus area
       const exercisesQuery = query(
         collection(db, 'exercises'),
         where('focusAreas', 'array-contains', workoutPlan.focusArea),
@@ -98,7 +99,6 @@ export default function PlanScreen() {
 
     try {
       if (editingExerciseId) {
-        // Update existing exercise
         const exerciseData = {
           ...newExercise,
           name: newExercise.name.trim(),
@@ -107,9 +107,6 @@ export default function PlanScreen() {
         };
 
         await updateDoc(doc(db, 'exercises', editingExerciseId), exerciseData);
-        console.log('Exercise updated with ID:', editingExerciseId);
-
-        // Update local state
         setAvailableExercises(prev => 
           prev.map(ex => 
             ex.id === editingExerciseId 
@@ -120,7 +117,6 @@ export default function PlanScreen() {
 
         alert('Exercise updated successfully!');
       } else {
-        // Create new exercise
         const exerciseData = {
           ...newExercise,
           name: newExercise.name.trim(),
@@ -130,9 +126,7 @@ export default function PlanScreen() {
         };
 
         const docRef = await addDoc(collection(db, 'exercises'), exerciseData);
-        console.log('New exercise added with ID:', docRef.id);
 
-        // Add to local state if it includes current focus area
         if (newExercise.focusAreas.includes(workoutPlan.focusArea)) {
           const newExerciseWithId = { id: docRef.id, ...exerciseData };
           setAvailableExercises(prev => [...prev, newExerciseWithId].sort((a, b) => a.name.localeCompare(b.name)));
@@ -141,7 +135,6 @@ export default function PlanScreen() {
         alert('Exercise added successfully!');
       }
 
-      // Reset form
       setNewExercise({
         name: '',
         category: 'compound',
@@ -162,10 +155,7 @@ export default function PlanScreen() {
     if (confirm(`Are you sure you want to delete "${exerciseName}"? This action cannot be undone.`)) {
       try {
         await deleteExercise(exerciseId);
-        
-        // Remove from local state
         setAvailableExercises(prev => prev.filter(ex => ex.id !== exerciseId));
-        
         alert('Exercise deleted successfully!');
       } catch (error) {
         console.error('Error deleting exercise:', error);
@@ -204,15 +194,14 @@ export default function PlanScreen() {
       category: exercise.category,
       focusAreas: exercise.focusAreas,
       isCardio: isCardio,
-      exerciseId: exercise.id, // Reference to original exercise for editing
+      exerciseId: exercise.id,
+      supersetId: null, // Will be set when added to superset
       sets: isCardio ? [
-        // Cardio structure - 4 default sets
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false },
         { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false }
       ] : [
-        // Regular exercise structure - 4 default sets
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
         { weight: '', reps: '', completed: false },
@@ -224,6 +213,92 @@ export default function PlanScreen() {
       ...prev,
       exercises: [...prev.exercises, newExercise]
     }));
+  };
+
+  // Superset functions
+  const createSuperset = () => {
+    if (selectedForSuperset.length < 2) {
+      alert('Please select at least 2 exercises to create a superset');
+      return;
+    }
+
+    const supersetId = Date.now();
+    const updatedExercises = workoutPlan.exercises.map(exercise => {
+      if (selectedForSuperset.includes(exercise.id)) {
+        return { ...exercise, supersetId };
+      }
+      return exercise;
+    });
+
+    const newSuperset = {
+      id: supersetId,
+      name: `Superset ${workoutPlan.supersets.length + 1}`,
+      exerciseIds: selectedForSuperset,
+      sets: 3 // Default number of superset rounds
+    };
+
+    setWorkoutPlan(prev => ({
+      ...prev,
+      exercises: updatedExercises,
+      supersets: [...prev.supersets, newSuperset]
+    }));
+
+    setSelectedForSuperset([]);
+  };
+
+  const removeFromSuperset = (exerciseId) => {
+    const exercise = workoutPlan.exercises.find(ex => ex.id === exerciseId);
+    if (!exercise || !exercise.supersetId) return;
+
+    const superset = workoutPlan.supersets.find(ss => ss.id === exercise.supersetId);
+    if (!superset) return;
+
+    const updatedExerciseIds = superset.exerciseIds.filter(id => id !== exerciseId);
+    
+    // If only one exercise left, remove the superset entirely
+    if (updatedExerciseIds.length < 2) {
+      setWorkoutPlan(prev => ({
+        ...prev,
+        exercises: prev.exercises.map(ex => 
+          ex.supersetId === exercise.supersetId ? { ...ex, supersetId: null } : ex
+        ),
+        supersets: prev.supersets.filter(ss => ss.id !== exercise.supersetId)
+      }));
+    } else {
+      // Update superset and remove exercise from it
+      setWorkoutPlan(prev => ({
+        ...prev,
+        exercises: prev.exercises.map(ex => 
+          ex.id === exerciseId ? { ...ex, supersetId: null } : ex
+        ),
+        supersets: prev.supersets.map(ss => 
+          ss.id === exercise.supersetId 
+            ? { ...ss, exerciseIds: updatedExerciseIds }
+            : ss
+        )
+      }));
+    }
+  };
+
+  const toggleExerciseForSuperset = (exerciseId) => {
+    setSelectedForSuperset(prev => 
+      prev.includes(exerciseId) 
+        ? prev.filter(id => id !== exerciseId)
+        : [...prev, exerciseId]
+    );
+  };
+
+  const moveExercise = (exerciseId, direction) => {
+    const exercises = [...workoutPlan.exercises];
+    const index = exercises.findIndex(ex => ex.id === exerciseId);
+    
+    if (direction === 'up' && index > 0) {
+      [exercises[index], exercises[index - 1]] = [exercises[index - 1], exercises[index]];
+    } else if (direction === 'down' && index < exercises.length - 1) {
+      [exercises[index], exercises[index + 1]] = [exercises[index + 1], exercises[index]];
+    }
+    
+    setWorkoutPlan(prev => ({ ...prev, exercises }));
   };
 
   const addSelectedExercises = () => {
@@ -251,15 +326,17 @@ export default function PlanScreen() {
 
   const selectAllExercises = () => {
     if (selectedExercises.length === filteredExercises.length) {
-      // Deselect all
       setSelectedExercises([]);
     } else {
-      // Select all filtered exercises
       setSelectedExercises([...filteredExercises]);
     }
   };
 
   const removeExercise = (exerciseId) => {
+    // Remove from superset if needed
+    removeFromSuperset(exerciseId);
+    
+    // Remove exercise
     setWorkoutPlan(prev => ({
       ...prev,
       exercises: prev.exercises.filter(ex => ex.id !== exerciseId)
@@ -296,13 +373,8 @@ export default function PlanScreen() {
     }
 
     try {
-      // Fix timezone issue by creating date with explicit time and timezone handling
       const [year, month, day] = workoutPlan.date.split('-').map(Number);
-      const workoutDate = new Date(year, month - 1, day, 12, 0, 0, 0); // Create date in local timezone at noon
-      
-      console.log('Selected date string:', workoutPlan.date);
-      console.log('Created workout date:', workoutDate);
-      console.log('Formatted for display:', format(workoutDate, 'MMMM d, yyyy'));
+      const workoutDate = new Date(year, month - 1, day, 12, 0, 0, 0);
       
       const scheduledWorkoutData = {
         ...workoutPlan,
@@ -314,14 +386,14 @@ export default function PlanScreen() {
       
       alert(`Workout scheduled for ${format(workoutDate, 'MMMM d, yyyy')}!`);
       
-      // Reset the form for next workout
       setWorkoutPlan({
         date: format(new Date(), 'yyyy-MM-dd'),
         type: 'hypertrophy',
         focusArea: 'Pull',
         motivation: 7,
         notes: '',
-        exercises: []
+        exercises: [],
+        supersets: []
       });
       
       setShowScheduleOptions(false);
@@ -331,11 +403,136 @@ export default function PlanScreen() {
     }
   };
 
-  // Filter exercises based on search term
   const filteredExercises = availableExercises.filter(exercise =>
     exercise.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Get superset for exercise
+  const getExerciseSuperset = (exerciseId) => {
+    const exercise = workoutPlan.exercises.find(ex => ex.id === exerciseId);
+    if (!exercise || !exercise.supersetId) return null;
+    return workoutPlan.supersets.find(ss => ss.id === exercise.supersetId);
+  };
+
+  // Render exercise with superset indicators
+  const renderExerciseItem = (exercise, index) => {
+    const superset = getExerciseSuperset(exercise.id);
+    const isInSuperset = !!superset;
+    const isSelectedForNewSuperset = selectedForSuperset.includes(exercise.id);
+    
+    return (
+      <div 
+        key={exercise.id} 
+        className={`border-2 rounded-lg bg-white ${
+          isInSuperset ? 'border-purple-300 bg-purple-50' : 'border-secondary-200'
+        } ${isSelectedForNewSuperset ? 'ring-2 ring-blue-400' : ''}`}
+      >
+        {/* Superset header */}
+        {isInSuperset && superset.exerciseIds[0] === exercise.id && (
+          <div className="bg-purple-500 text-white px-3 py-1 text-xs font-medium rounded-t-lg flex items-center justify-between">
+            <span>🔗 {superset.name} ({superset.exerciseIds.length} exercises)</span>
+            <span>{superset.sets} rounds</span>
+          </div>
+        )}
+        
+        <div className="p-3">
+          <div className="flex justify-between items-start">
+            <div 
+              className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
+              onClick={() => setSelectedExercise(exercise.id)}
+            >
+              <div className="font-medium text-secondary-900 flex items-center">
+                {isInSuperset && (
+                  <span className="text-purple-600 mr-2 text-sm">
+                    {superset.exerciseIds.indexOf(exercise.id) + 1}.
+                  </span>
+                )}
+                {exercise.name}
+                {exercise.isCardio && (
+                  <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                    Cardio
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-secondary-600">
+                {exercise.sets.length} sets planned • {exercise.category}
+              </div>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {exercise.focusAreas?.slice(0, 2).map(area => (
+                  <span 
+                    key={area}
+                    className="text-xs bg-primary-100 text-primary-700 px-1 py-0.5 rounded"
+                  >
+                    {area}
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-1 ml-2">
+              {/* Move up/down buttons */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => moveExercise(exercise.id, 'up')}
+                  disabled={index === 0}
+                  className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
+                  title="Move up"
+                >
+                  <ArrowUp className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={() => moveExercise(exercise.id, 'down')}
+                  disabled={index === workoutPlan.exercises.length - 1}
+                  className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
+                  title="Move down"
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </button>
+              </div>
+              
+              {/* Superset controls */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => toggleExerciseForSuperset(exercise.id)}
+                  className={`p-1 rounded ${
+                    isSelectedForNewSuperset 
+                      ? 'bg-blue-500 text-white' 
+                      : 'text-blue-600 hover:bg-blue-100'
+                  }`}
+                  title={isSelectedForNewSuperset ? 'Remove from superset selection' : 'Select for superset'}
+                >
+                  <Link className="h-3 w-3" />
+                </button>
+                
+                {isInSuperset && (
+                  <button
+                    onClick={() => removeFromSuperset(exercise.id)}
+                    className="p-1 text-purple-600 hover:bg-purple-100 rounded"
+                    title="Remove from superset"
+                  >
+                    <Unlink className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              
+              <Button 
+                size="sm" 
+                variant="secondary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeExercise(exercise.id);
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Component continues with existing conditional renders...
   if (showAddNewExercise) {
     return (
       <div className="p-4 max-w-md mx-auto">
@@ -570,7 +767,6 @@ export default function PlanScreen() {
             )}
           </div>
           
-          {/* Multi-select actions */}
           {selectedExercises.length > 0 && (
             <div className="bg-primary-50 border-2 border-primary-200 rounded-lg p-4 mb-4">
               <div className="text-sm text-primary-800 mb-3">
@@ -806,57 +1002,47 @@ export default function PlanScreen() {
 
       {workoutPlan.exercises.length > 0 && (
         <Card className="p-6">
-          <h3 className="text-lg font-bold text-secondary-900 mb-4">Planned Exercises</h3>
-          <div className="space-y-3">
-            {workoutPlan.exercises.map((exercise) => (
-              <div 
-                key={exercise.id} 
-                className="flex justify-between items-center p-3 border-2 border-secondary-200 rounded-lg bg-white cursor-pointer hover:bg-gray-50"
-                onClick={() => setSelectedExercise(exercise.id)}
-              >
-                <div>
-                  <div className="font-medium text-secondary-900 flex items-center">
-                    {exercise.name}
-                    {exercise.isCardio && (
-                      <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                        Cardio
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-secondary-600">
-                    {exercise.sets.length} sets planned • {exercise.category}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {exercise.focusAreas?.slice(0, 2).map(area => (
-                      <span 
-                        key={area}
-                        className="text-xs bg-primary-100 text-primary-700 px-1 py-0.5 rounded"
-                      >
-                        {area}
-                      </span>
-                    ))}
-                    {exercise.focusAreas?.length > 2 && (
-                      <span className="text-xs text-secondary-500">
-                        +{exercise.focusAreas.length - 2} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <Button 
-                  size="sm" 
-                  variant="secondary"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeExercise(exercise.id);
-                  }}
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-bold text-secondary-900">Planned Exercises</h3>
+            
+            {/* Superset creation controls */}
+            {selectedForSuperset.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={createSuperset}
+                  disabled={selectedForSuperset.length < 2}
+                  className="flex items-center"
                 >
-                  Remove
+                  <Link className="h-3 w-3 mr-1" />
+                  Create Superset ({selectedForSuperset.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSelectedForSuperset([])}
+                >
+                  Clear
                 </Button>
               </div>
-            ))}
+            )}
           </div>
           
-          <div className="flex gap-3 mt-4">
+          {selectedForSuperset.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border-2 border-blue-200 rounded-lg">
+              <div className="text-sm text-blue-800">
+                <strong>Creating Superset:</strong> Select 2+ exercises and click "Create Superset"
+                <br />
+                <span className="text-xs">Selected: {selectedForSuperset.length} exercise{selectedForSuperset.length !== 1 ? 's' : ''}</span>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-3">
+            {workoutPlan.exercises.map((exercise, index) => renderExerciseItem(exercise, index))}
+          </div>
+          
+          <div className="flex gap-3 mt-6">
             <Button onClick={startWorkout} className="flex-1">
               Start Now
             </Button>
@@ -902,6 +1088,9 @@ export default function PlanScreen() {
                   <div>Type: <span className="capitalize">{workoutPlan.type}</span></div>
                   <div>Focus: {workoutPlan.focusArea}</div>
                   <div>Exercises: {workoutPlan.exercises.length}</div>
+                  {workoutPlan.supersets.length > 0 && (
+                    <div>Supersets: {workoutPlan.supersets.length}</div>
+                  )}
                   <div>Date: {(() => {
                     const [year, month, day] = workoutPlan.date.split('-').map(Number);
                     const displayDate = new Date(year, month - 1, day);
