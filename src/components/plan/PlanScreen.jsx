@@ -241,19 +241,23 @@ export default function PlanScreen() {
     }));
   };
 
-  const startWorkout = () => {
-    if (workoutPlan.exercises.length === 0) {
-      alert('Please add at least one exercise to your workout plan.');
-      return;
-    }
-    
-    setCurrentWorkout({
-      ...workoutPlan,
-      startTime: new Date(),
-      status: 'active'
-    });
-    navigate('/workout');
-  };
+const startWorkout = () => {
+  if (workoutPlan.exercises.length === 0) {
+    alert('Please add at least one exercise to your workout plan.');
+    return;
+  }
+  
+  // Create a date object that preserves the local date
+  const workoutDate = new Date(workoutPlan.date + 'T12:00:00'); // Add noon time to avoid timezone issues
+  
+  setCurrentWorkout({
+    ...workoutPlan,
+    date: workoutDate, // Use the properly formatted date
+    startTime: new Date(),
+    status: 'active'
+  });
+  navigate('/workout');
+};
 
   // Filter exercises based on search term
   const filteredExercises = availableExercises.filter(exercise =>
