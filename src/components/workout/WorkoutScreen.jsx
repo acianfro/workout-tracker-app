@@ -180,6 +180,8 @@ const finishWorkout = async () => {
   const completedWorkout = {
     ...currentWorkout,
     exercises: processedExercises,
+    // Keep the original planned date instead of using current date
+    date: new Date(currentWorkout.date), // This preserves the planned date
     endTime: new Date(),
     duration: differenceInMinutes(new Date(), currentWorkout.startTime),
     rating: workoutRating,
