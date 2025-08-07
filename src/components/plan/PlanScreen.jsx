@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Plus, Calendar, X, Tag, Trash2, Edit, Link, Unlink, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Calendar, X, Tag, Trash2, Edit, Link, Unlink, ArrowUp, ArrowDown, ChevronDown, ChevronRight, History } from 'lucide-react';
 import { format } from 'date-fns';
 import { collection, addDoc, getDocs, query, where, orderBy, arrayContains, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
@@ -20,6 +20,59 @@ const FOCUS_AREAS = [
   'Push',
   'Shoulders'
 ];
+
+// Exercise History Component
+function ExerciseHistory({ exerciseName, isExpanded, onToggle }) {
+  const { getFormattedExerciseHistory, getExerciseProgressIndicator } = useUserData();
+  
+  const history = getFormattedExerciseHistory(exerciseName);
+  const progressIndicator = getExerciseProgressIndicator(exerciseName);
+  
+  if (history.length === 0) return null;
+  
+  return (
+    <div className="mt-3 border-t border-gray-200 pt-3">
+      <button
+        onClick={onToggle}
+        className="flex items-center justify-between w-full text-sm text-gray-600 hover:text-gray-800"
+      >
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4" />
+          <span>Exercise History ({history.length})</span>
+          <div className={`flex items-center gap-1 text-xs font-medium ${progressIndicator.color}`}>
+            <span>{progressIndicator.icon}</span>
+            <span>{progressIndicator.text}</span>
+            {progressIndicator.change && (
+              <span>({progressIndicator.change})</span>
+            )}
+          </div>
+        </div>
+        {isExpanded ? 
+          <ChevronDown className="h-4 w-4" /> : 
+          <ChevronRight className="h-4 w-4" />
+        }
+      </button>
+      
+      {isExpanded && (
+        <div className="mt-3 space-y-2">
+          {history.map((entry, index) => (
+            <div key={index} className="bg-gray-50 rounded-lg p-3 text-sm">
+              <div className="flex justify-between items-start mb-1">
+                <span className="font-medium text-gray-900">{entry.dateString}</span>
+                {!entry.isCardio && entry.volume > 0 && (
+                  <span className="text-xs text-gray-500">
+                    Volume: {entry.isCardio ? 'N/A' : entry.volume}
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-700">{entry.sets}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PlanScreen() {
   const { setCurrentWorkout, deleteExercise, saveScheduledWorkout } = useUserData();
@@ -45,6 +98,7 @@ export default function PlanScreen() {
   const [selectedForSuperset, setSelectedForSuperset] = useState([]);
   const [supersetName, setSupersetName] = useState('');
   const [showScheduleOptions, setShowScheduleOptions] = useState(false);
+  const [expandedHistories, setExpandedHistories] = useState({});
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
@@ -52,6 +106,14 @@ export default function PlanScreen() {
     description: '',
     instructions: ''
   });
+
+  // Toggle exercise history expansion
+  const toggleHistoryExpansion = (exerciseName) => {
+    setExpandedHistories(prev => ({
+      ...prev,
+      [exerciseName]: !prev[exerciseName]
+    }));
+  };
 
   // Load exercises when component mounts or focus area changes
   useEffect(() => {
@@ -853,6 +915,13 @@ export default function PlanScreen() {
                     )}
                   </div>
                 </div>
+                
+                {/* Exercise History in Selection View */}
+                <ExerciseHistory 
+                  exerciseName={exercise.name}
+                  isExpanded={expandedHistories[exercise.name]}
+                  onToggle={() => toggleHistoryExpansion(exercise.name)}
+                />
               </div>
             ))}
             
@@ -912,14 +981,21 @@ export default function PlanScreen() {
     return (
       <div className="p-4 max-w-md mx-auto">
         <Card className="p-6">
-          <h2 className="text-xl font-bold text-secondary-900 mb-6 text-center">
+          <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
             {exercise.name}
           </h2>
+          
+          {/* Exercise History in Exercise Details View */}
+          <ExerciseHistory 
+            exerciseName={exercise.name}
+            isExpanded={expandedHistories[exercise.name]}
+            onToggle={() => toggleHistoryExpansion(exercise.name)}
+          />
           
           {exercise.isCardio ? (
             // Cardio Exercise Planning
             <>
-              <div className="text-sm text-secondary-600 mb-3">Cardio Sets</div>
+              <div className="text-sm text-secondary-600 mb-3 mt-4">Cardio Sets</div>
               <div className="space-y-3">
                 {exercise.sets.map((set, index) => (
                   <div key={index} className="p-3 border-2 border-secondary-200 rounded-lg space-y-3">
@@ -973,7 +1049,7 @@ export default function PlanScreen() {
           ) : (
             // Regular Exercise Planning  
             <>
-              <div className="text-sm text-secondary-600 mb-3">Planned Sets</div>
+              <div className="text-sm text-secondary-600 mb-3 mt-4">Planned Sets</div>
               <div className="space-y-3">
                 {exercise.sets.map((set, index) => (
                   <div key={index} className="flex items-center gap-3 p-3 border-2 border-secondary-200 rounded-lg">
@@ -1244,6 +1320,13 @@ export default function PlanScreen() {
                       </Button>
                     </div>
                   </div>
+                  
+                  {/* Exercise History in Planned Exercises View */}
+                  <ExerciseHistory 
+                    exerciseName={exercise.name}
+                    isExpanded={expandedHistories[exercise.name]}
+                    onToggle={() => toggleHistoryExpansion(exercise.name)}
+                  />
                 </div>
               );
             })}
