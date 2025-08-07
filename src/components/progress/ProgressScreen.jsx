@@ -1,17 +1,20 @@
 import React, { useState, useMemo } from 'react';
 import { useUserData } from '../../contexts/UserDataContext';
+import { useNavigate } from 'react-router-dom';
 import Card from '../ui/Card';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays, subWeeks, subMonths, isAfter } from 'date-fns';
-import { Edit, Trash2, X, Calendar, Clock, TrendingUp } from 'lucide-react';
+import { Edit, Trash2, X, Calendar, Clock, TrendingUp, Copy, Share, ArrowLeft, Plus, Minus, Check } from 'lucide-react';
 
 export default function ProgressScreen() {
-  const { workouts, measurements, updateWorkout, deleteWorkout } = useUserData();
+  const { workouts, measurements, updateWorkout, deleteWorkout, setCurrentWorkout } = useUserData();
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState('week');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingWorkout, setEditingWorkout] = useState(null);
+  const [viewingWorkout, setViewingWorkout] = useState(null);
   const [editWorkoutData, setEditWorkoutData] = useState({});
 
   // Calculate date range
@@ -29,11 +32,32 @@ export default function ProgressScreen() {
     }
   };
 
+  // Helper function to safely convert dates
+  const getDisplayDate = (dateValue) => {
+    if (!dateValue) return new Date();
+    
+    // Handle Firestore timestamp
+    if (dateValue.toDate) {
+      return dateValue.toDate();
+    }
+    
+    // Handle regular Date object or date string
+    const date = new Date(dateValue);
+    
+    // Check if it's a valid date
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date encountered:', dateValue);
+      return new Date();
+    }
+    
+    return date;
+  };
+
   // Filter workouts by date range
   const filteredWorkouts = useMemo(() => {
     const startDate = getDateRange();
     return workouts.filter(workout => {
-      const workoutDate = workout.date?.toDate ? workout.date.toDate() : new Date(workout.date);
+      const workoutDate = getDisplayDate(workout.date);
       return isAfter(workoutDate, startDate);
     });
   }, [workouts, timeRange]);
@@ -56,7 +80,7 @@ export default function ProgressScreen() {
   const weightChartData = useMemo(() => {
     const startDate = getDateRange();
     const filteredMeasurements = measurements.filter(m => {
-      const measurementDate = m.date?.toDate ? m.date.toDate() : new Date(m.date);
+      const measurementDate = getDisplayDate(m.date);
       return isAfter(measurementDate, startDate) && m.weight;
     });
 
@@ -64,7 +88,7 @@ export default function ProgressScreen() {
       .slice(0, 10) // Limit to 10 most recent
       .reverse()
       .map(m => ({
-        date: format(m.date?.toDate ? m.date.toDate() : new Date(m.date), 'MMM d'),
+        date: format(getDisplayDate(m.date), 'MMM d'),
         weight: m.weight
       }));
   }, [measurements, timeRange]);
@@ -75,7 +99,7 @@ export default function ProgressScreen() {
       .slice(0, 10)
       .reverse()
       .map(workout => ({
-        date: format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'MMM d'),
+        date: format(getDisplayDate(workout.date), 'MMM d'),
         weight: workout.totalWeight || 0
       }));
   }, [filteredWorkouts]);
@@ -119,10 +143,17 @@ export default function ProgressScreen() {
     return Array.from(exerciseMap.values());
   }, [workouts, searchTerm]);
 
+  // Handle viewing workout (read-only)
+  const handleViewWorkout = (workout) => {
+    setViewingWorkout(workout);
+  };
+
+  // Handle editing workout
   const handleEditWorkout = (workout) => {
     setEditingWorkout(workout.id);
+    const workoutDate = getDisplayDate(workout.date);
     setEditWorkoutData({
-      date: format(workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 'yyyy-MM-dd'),
+      date: format(workoutDate, 'yyyy-MM-dd'),
       type: workout.type || 'hypertrophy',
       focusArea: workout.focusArea || 'push',
       motivation: workout.motivation || 5,
@@ -131,6 +162,88 @@ export default function ProgressScreen() {
       notes: workout.notes || '',
       exercises: workout.exercises || []
     });
+  };
+
+  // Handle copying workout to plan screen
+  const handleCopyWorkout = (workout) => {
+    // Create a workout plan from the historical workout
+    const workoutPlan = {
+      date: format(new Date(), 'yyyy-MM-dd'), // Today's date
+      type: workout.type || 'hypertrophy',
+      focusArea: workout.focusArea || 'Pull',
+      motivation: 7, // Default motivation
+      notes: `Copied from ${format(getDisplayDate(workout.date), 'MMM d, yyyy')} workout`,
+      exercises: workout.exercises?.map(exercise => ({
+        id: Date.now() + Math.random(), // New ID for each exercise
+        name: exercise.name,
+        category: exercise.category,
+        focusAreas: exercise.focusAreas,
+        isCardio: exercise.isCardio,
+        exerciseId: exercise.exerciseId,
+        supersetId: null, // Reset superset associations
+        sets: exercise.sets?.map(set => ({
+          weight: set.actualWeight || set.weight || '',
+          reps: set.actualReps || set.reps || '',
+          distance: set.actualDistance || set.distance || '',
+          duration: set.actualDuration || set.duration || '',
+          floorsClimbed: set.actualFloorsClimbed || set.floorsClimbed || '',
+          weightedVest: set.actualWeightedVest || set.weightedVest || '',
+          completed: false // Reset completion status
+        })) || []
+      })) || [],
+      supersets: [] // Reset supersets for now - could be enhanced later
+    };
+
+    // Set as current workout plan and navigate to plan screen
+    setCurrentWorkout(workoutPlan);
+    navigate('/plan');
+  };
+
+  // Handle sharing workout
+  const handleShareWorkout = async (workout) => {
+    const workoutDate = getDisplayDate(workout.date);
+    const shareText = `💪 ${workout.focusArea} Day Workout
+📅 ${format(workoutDate, 'MMM d, yyyy')}
+⏱️ ${workout.duration}min • ${(workout.totalWeight || 0).toLocaleString()} lbs
+⭐ Rating: ${workout.rating}/10
+
+Exercises:
+${workout.exercises?.map(exercise => {
+  const setsText = exercise.sets?.map(set => {
+    if (exercise.isCardio) {
+      const distance = set.actualDistance || set.distance || '0';
+      const duration = set.actualDuration || set.duration || '0';
+      return `${duration}min × ${distance}mi`;
+    } else {
+      const weight = set.actualWeight || set.weight || 'BW';
+      const reps = set.actualReps || set.reps || '0';
+      return `${weight}×${reps}`;
+    }
+  }).join(', ') || 'No sets recorded';
+  return `• ${exercise.name}: ${setsText}`;
+}).join('\n') || 'No exercises recorded'}
+
+${workout.notes ? `\nNotes: ${workout.notes}` : ''}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${workout.focusArea} Day Workout`,
+          text: shareText
+        });
+      } catch (error) {
+        console.log('Share cancelled or failed');
+      }
+    } else {
+      // Fallback to clipboard
+      try {
+        await navigator.clipboard.writeText(shareText);
+        alert('Workout details copied to clipboard!');
+      } catch (error) {
+        console.error('Failed to copy to clipboard');
+        alert('Failed to copy workout details');
+      }
+    }
   };
 
   const handleUpdateWorkout = async (workoutId) => {
@@ -152,6 +265,48 @@ export default function ProgressScreen() {
     }
   };
 
+  // Update exercise sets in edit mode
+  const updateExerciseSets = (exerciseIndex, sets) => {
+    setEditWorkoutData(prev => ({
+      ...prev,
+      exercises: prev.exercises.map((ex, index) => 
+        index === exerciseIndex ? { ...ex, sets } : ex
+      )
+    }));
+  };
+
+  const addSetToExercise = (exerciseIndex) => {
+    const exercise = editWorkoutData.exercises[exerciseIndex];
+    const newSet = exercise.isCardio ? {
+      distance: '',
+      floorsClimbed: '',
+      weightedVest: '',
+      duration: '',
+      actualDistance: '',
+      actualFloorsClimbed: '',
+      actualWeightedVest: '',
+      actualDuration: '',
+      completed: false
+    } : {
+      weight: '',
+      reps: '',
+      actualWeight: '',
+      actualReps: '',
+      completed: false
+    };
+    
+    const newSets = [...exercise.sets, newSet];
+    updateExerciseSets(exerciseIndex, newSets);
+  };
+
+  const removeSetFromExercise = (exerciseIndex, setIndex) => {
+    const exercise = editWorkoutData.exercises[exerciseIndex];
+    if (exercise.sets.length > 1) {
+      const newSets = exercise.sets.filter((_, index) => index !== setIndex);
+      updateExerciseSets(exerciseIndex, newSets);
+    }
+  };
+
 const handleDeleteWorkout = async (workoutId) => {
   if (confirm('Are you sure you want to delete this workout? This action cannot be undone.')) {
     try {
@@ -169,9 +324,154 @@ const handleDeleteWorkout = async (workoutId) => {
     setEditWorkoutData({});
   };
 
+  const cancelView = () => {
+    setViewingWorkout(null);
+  };
+
+  // Read-only workout detail view
+  if (viewingWorkout) {
+    return (
+      <div className="p-4 max-w-md mx-auto space-y-4">
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold text-secondary-900">Workout Details</h2>
+            <button
+              onClick={cancelView}
+              className="p-2 hover:bg-gray-100 rounded-full"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Workout Summary */}
+          <div className="space-y-4 mb-6">
+            <div className="bg-primary-50 p-4 rounded-lg">
+              <div className="font-medium text-secondary-900 capitalize flex items-center mb-2">
+                {viewingWorkout.focusArea || 'Unknown'} Day
+                <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded capitalize">
+                  {viewingWorkout.type || 'workout'}
+                </span>
+              </div>
+              <div className="text-sm text-secondary-600 space-y-1">
+                <div className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {format(getDisplayDate(viewingWorkout.date), 'MMMM d, yyyy')}
+                </div>
+                <div className="flex items-center">
+                  <Clock className="h-4 w-4 mr-2" />
+                  {viewingWorkout.duration || 0} minutes
+                </div>
+                <div className="flex items-center">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  {(viewingWorkout.totalWeight || 0).toLocaleString()} lbs total
+                </div>
+                <div>⭐ Rating: {viewingWorkout.rating || 'N/A'}/10</div>
+                {viewingWorkout.notes && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded italic text-sm">
+                    "{viewingWorkout.notes}"
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => handleCopyWorkout(viewingWorkout)}
+                variant="outline"
+                className="flex-1 flex items-center justify-center"
+              >
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Workout
+              </Button>
+              <Button 
+                onClick={() => handleShareWorkout(viewingWorkout)}
+                variant="outline"
+                className="flex-1 flex items-center justify-center"
+              >
+                <Share className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            </div>
+          </div>
+
+          {/* Exercise Details */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-secondary-900">Exercises ({viewingWorkout.exercises?.length || 0})</h3>
+            {viewingWorkout.exercises?.map((exercise, exerciseIndex) => (
+              <Card key={exerciseIndex} className="p-4 bg-gray-50">
+                <div className="font-medium text-secondary-900 mb-3 flex items-center">
+                  {exercise.name}
+                  {exercise.isCardio && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                      Cardio
+                    </span>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  {exercise.sets?.map((set, setIndex) => (
+                    <div key={setIndex} className="bg-white p-3 rounded border">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-gray-600">
+                          Set {setIndex + 1}
+                        </span>
+                        {set.completed && (
+                          <Check className="h-4 w-4 text-green-600" />
+                        )}
+                      </div>
+                      
+                      {exercise.isCardio ? (
+                        <div className="text-sm text-gray-700 mt-1">
+                          {set.actualDistance || set.distance || '0'} miles • {set.actualDuration || set.duration || '0'} min
+                          {(set.actualFloorsClimbed || set.floorsClimbed) && (
+                            <span> • {set.actualFloorsClimbed || set.floorsClimbed} floors</span>
+                          )}
+                          {(set.actualWeightedVest || set.weightedVest) && (
+                            <span> • {set.actualWeightedVest || set.weightedVest} lbs vest</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-700 mt-1">
+                          {set.actualWeight || set.weight || 'BW'} × {set.actualReps || set.reps || '0'} reps
+                        </div>
+                      )}
+                    </div>
+                  )) || (
+                    <div className="text-sm text-gray-500 italic">No sets recorded</div>
+                  )}
+                </div>
+
+                {exercise.notes && (
+                  <div className="mt-3 p-2 bg-blue-50 rounded text-sm italic">
+                    Notes: {exercise.notes}
+                  </div>
+                )}
+              </Card>
+            )) || (
+              <div className="text-center text-gray-500 py-4">
+                No exercises recorded for this workout
+              </div>
+            )}
+          </div>
+
+          <Button 
+            onClick={cancelView}
+            variant="secondary"
+            className="w-full mt-6 flex items-center justify-center"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Progress
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  // Edit workout view (enhanced with exercise details)
   if (editingWorkout) {
     return (
-      <div className="p-4 max-w-md mx-auto">
+      <div className="p-4 max-w-md mx-auto space-y-4">
         <Card className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-secondary-900">Edit Workout</h2>
@@ -282,25 +582,127 @@ const handleDeleteWorkout = async (workoutId) => {
                   onChange={(e) => setEditWorkoutData(prev => ({ ...prev, notes: e.target.value }))}
                 />
               </div>
-              
-              <div className="flex gap-3 pt-4">
-                <Button 
-                  type="submit"
-                  className="flex-1"
-                >
-                  Save Changes
-                </Button>
-                <Button 
-                  type="button"
-                  onClick={cancelEdit}
-                  variant="secondary"
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
             </div>
           </form>
+        </Card>
+
+        {/* Exercise Details in Edit Mode */}
+        {editWorkoutData.exercises && editWorkoutData.exercises.length > 0 && (
+          <Card className="p-6">
+            <h3 className="text-lg font-bold text-secondary-900 mb-4">
+              Exercises ({editWorkoutData.exercises.length})
+            </h3>
+            
+            <div className="space-y-4">
+              {editWorkoutData.exercises.map((exercise, exerciseIndex) => (
+                <Card key={exerciseIndex} className="p-4 bg-gray-50">
+                  <div className="font-medium text-secondary-900 mb-3 flex items-center">
+                    {exercise.name}
+                    {exercise.isCardio && (
+                      <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                        Cardio
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {exercise.sets?.map((set, setIndex) => (
+                      <div key={setIndex} className="bg-white p-3 rounded border">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-medium text-gray-600">
+                            Set {setIndex + 1}
+                          </span>
+                          {exercise.sets.length > 1 && (
+                            <button
+                              onClick={() => removeSetFromExercise(exerciseIndex, setIndex)}
+                              className="p-1 text-red-600 hover:bg-red-100 rounded"
+                              title="Remove set"
+                            >
+                              <Minus className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        {exercise.isCardio ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Distance (mi)"
+                              value={set.actualDistance || set.distance || ''}
+                              onChange={(e) => {
+                                const newSets = [...exercise.sets];
+                                newSets[setIndex] = { ...set, actualDistance: e.target.value };
+                                updateExerciseSets(exerciseIndex, newSets);
+                              }}
+                            />
+                            <Input
+                              placeholder="Duration (min)"
+                              value={set.actualDuration || set.duration || ''}
+                              onChange={(e) => {
+                                const newSets = [...exercise.sets];
+                                newSets[setIndex] = { ...set, actualDuration: e.target.value };
+                                updateExerciseSets(exerciseIndex, newSets);
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              placeholder="Weight"
+                              value={set.actualWeight || set.weight || ''}
+                              onChange={(e) => {
+                                const newSets = [...exercise.sets];
+                                newSets[setIndex] = { ...set, actualWeight: e.target.value };
+                                updateExerciseSets(exerciseIndex, newSets);
+                              }}
+                            />
+                            <Input
+                              placeholder="Reps"
+                              value={set.actualReps || set.reps || ''}
+                              onChange={(e) => {
+                                const newSets = [...exercise.sets];
+                                newSets[setIndex] = { ...set, actualReps: e.target.value };
+                                updateExerciseSets(exerciseIndex, newSets);
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )) || (
+                      <div className="text-sm text-gray-500 italic">No sets recorded</div>
+                    )}
+                    
+                    <Button
+                      onClick={() => addSetToExercise(exerciseIndex)}
+                      variant="secondary"
+                      size="sm"
+                      className="w-full flex items-center justify-center"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Set
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        <Card className="p-4">
+          <div className="flex gap-3">
+            <Button 
+              onClick={() => handleUpdateWorkout(editingWorkout)}
+              className="flex-1"
+            >
+              Save Changes
+            </Button>
+            <Button 
+              onClick={cancelEdit}
+              variant="secondary"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
         </Card>
       </div>
     );
@@ -418,7 +820,7 @@ const handleDeleteWorkout = async (workoutId) => {
         </div>
       </Card>
 
-      {/* Recent Workouts with Edit/Delete */}
+      {/* Recent Workouts with Enhanced Click Handling */}
       <Card className="p-6">
         <h3 className="text-lg font-bold text-secondary-900 mb-4">
           <TrendingUp className="inline h-5 w-5 mr-2" />
@@ -426,66 +828,87 @@ const handleDeleteWorkout = async (workoutId) => {
         </h3>
         
         <div className="space-y-3">
-          {filteredWorkouts.slice(0, 10).map((workout) => {
-            // Debug logging - remove after fixing
-            console.log('Displaying workout:', workout);
-            
-            return (
-              <div key={workout.id} className="border-2 border-secondary-200 rounded-lg bg-white">
-                <div className="flex justify-between items-center p-3">
-                  <div className="flex-1">
-                    <div className="font-medium text-secondary-900 capitalize flex items-center">
-                      {workout.focusArea || 'Unknown'} Day
-                      <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded capitalize">
-                        {workout.type || 'workout'}
-                      </span>
-                    </div>
-                    <div className="text-sm text-secondary-600 flex items-center gap-3">
-                     <span className="flex items-center">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {format(
-                          workout.date?.toDate ? workout.date.toDate() : new Date(workout.date), 
-                          'MMM d, yyyy'  // Add year and use full format to be more explicit
-                        )}
-                      </span>
-                      <span className="flex items-center">
-                        <Clock className="h-3 w-3 mr-1" />
-                        {workout.duration || 0}min
-                      </span>
-                      <span>{(workout.totalWeight || 0).toLocaleString()} lbs</span>
-                    </div>
-                    {workout.notes && (
-                      <div className="text-xs text-secondary-500 mt-1 italic">
-                        "{workout.notes}"
-                      </div>
-                    )}
-                    {/* Exercise count */}
-                    <div className="text-xs text-secondary-500 mt-1">
-                      {workout.exercises?.length || 0} exercises • Rating: {workout.rating || 'N/A'}/10
-                    </div>
+          {filteredWorkouts.slice(0, 10).map((workout) => (
+            <div key={workout.id} className="border-2 border-secondary-200 rounded-lg bg-white">
+              <div 
+                className="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-50"
+                onClick={() => handleViewWorkout(workout)}
+              >
+                <div className="flex-1">
+                  <div className="font-medium text-secondary-900 capitalize flex items-center">
+                    {workout.focusArea || 'Unknown'} Day
+                    <span className="ml-2 text-xs bg-primary-100 text-primary-700 px-2 py-1 rounded capitalize">
+                      {workout.type || 'workout'}
+                    </span>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleEditWorkout(workout)}
-                        className="p-1 text-primary-600 hover:bg-primary-100 rounded"
-                        title="Edit workout"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteWorkout(workout.id)}
-                        className="p-1 text-red-600 hover:bg-red-100 rounded"
-                        title="Delete workout"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                  <div className="text-sm text-secondary-600 flex items-center gap-3">
+                   <span className="flex items-center">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      {format(getDisplayDate(workout.date), 'MMM d, yyyy')}
+                    </span>
+                    <span className="flex items-center">
+                      <Clock className="h-3 w-3 mr-1" />
+                      {workout.duration || 0}min
+                    </span>
+                    <span>{(workout.totalWeight || 0).toLocaleString()} lbs</span>
+                  </div>
+                  {workout.notes && (
+                    <div className="text-xs text-secondary-500 mt-1 italic">
+                      "{workout.notes}"
                     </div>
+                  )}
+                  {/* Exercise count */}
+                  <div className="text-xs text-secondary-500 mt-1">
+                    {workout.exercises?.length || 0} exercises • Rating: {workout.rating || 'N/A'}/10
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex gap-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopyWorkout(workout);
+                      }}
+                      className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                      title="Copy workout to plan"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleShareWorkout(workout);
+                      }}
+                      className="p-1 text-green-600 hover:bg-green-100 rounded"
+                      title="Share workout"
+                    >
+                      <Share className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditWorkout(workout);
+                      }}
+                      className="p-1 text-primary-600 hover:bg-primary-100 rounded"
+                      title="Edit workout"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteWorkout(workout.id);
+                      }}
+                      className="p-1 text-red-600 hover:bg-red-100 rounded"
+                      title="Delete workout"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
         
         {filteredWorkouts.length === 0 && (
