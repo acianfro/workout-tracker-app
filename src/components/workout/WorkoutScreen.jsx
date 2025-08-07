@@ -4,10 +4,66 @@ import { useNavigate } from 'react-router-dom';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 import Card from '../ui/Card';
-import { Clock, Check, Edit, Plus, Minus, X, Search, Link, ArrowRight } from 'lucide-react';
+import { Clock, Check, Edit, Plus, Minus, X, Search, Link, ArrowRight, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { format, differenceInMinutes, differenceInSeconds } from 'date-fns';
 import { collection, getDocs, query, where, orderBy, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+
+// Exercise History Component for Workout Screen
+function WorkoutExerciseHistory({ exerciseName, isExpanded, onToggle }) {
+  const { getFormattedExerciseHistory, getExerciseProgressIndicator } = useUserData();
+  
+  const history = getFormattedExerciseHistory(exerciseName);
+  const progressIndicator = getExerciseProgressIndicator(exerciseName);
+  
+  if (history.length === 0) return null;
+  
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-4">
+      <button
+        onClick={onToggle}
+        className="flex items-center justify-between w-full text-sm text-gray-600 hover:text-gray-800"
+      >
+        <div className="flex items-center gap-2">
+          <History className="h-4 w-4" />
+          <span>Last {history.length} time{history.length !== 1 ? 's' : ''}</span>
+          <div className={`flex items-center gap-1 text-xs font-medium ${progressIndicator.color}`}>
+            <span>{progressIndicator.icon}</span>
+            <span>{progressIndicator.text}</span>
+            {progressIndicator.change && (
+              <span>({progressIndicator.change})</span>
+            )}
+          </div>
+        </div>
+        {isExpanded ? 
+          <ChevronDown className="h-4 w-4" /> : 
+          <ChevronRight className="h-4 w-4" />
+        }
+      </button>
+      
+      {isExpanded && (
+        <div className="mt-3 space-y-2">
+          {history.map((entry, index) => (
+            <div key={index} className={`bg-gray-50 rounded-lg p-3 text-sm ${index === 0 ? 'bg-blue-50 border border-blue-200' : ''}`}>
+              <div className="flex justify-between items-start mb-1">
+                <span className="font-medium text-gray-900">
+                  {entry.dateString}
+                  {index === 0 && <span className="text-blue-600 ml-2 text-xs">(Last time)</span>}
+                </span>
+                {!entry.isCardio && entry.volume > 0 && (
+                  <span className="text-xs text-gray-500">
+                    Volume: {entry.volume}
+                  </span>
+                )}
+              </div>
+              <div className="text-gray-700 font-mono text-xs">{entry.sets}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WorkoutScreen() {
   const { currentWorkout, setCurrentWorkout, saveWorkout, calculateTotalWeight } = useUserData();
@@ -22,6 +78,7 @@ export default function WorkoutScreen() {
   const [showAddNewExercise, setShowAddNewExercise] = useState(false);
   const [availableExercises, setAvailableExercises] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [expandedHistories, setExpandedHistories] = useState({});
   const [newExercise, setNewExercise] = useState({
     name: '',
     category: 'compound',
@@ -29,6 +86,14 @@ export default function WorkoutScreen() {
     description: '',
     instructions: ''
   });
+
+  // Toggle exercise history expansion
+  const toggleHistoryExpansion = (exerciseName) => {
+    setExpandedHistories(prev => ({
+      ...prev,
+      [exerciseName]: !prev[exerciseName]
+    }));
+  };
 
   useEffect(() => {
     if (!currentWorkout) {
@@ -703,6 +768,13 @@ export default function WorkoutScreen() {
           </button>
         </div>
 
+        {/* Exercise History Display */}
+        <WorkoutExerciseHistory 
+          exerciseName={currentExercise.name}
+          isExpanded={expandedHistories[currentExercise.name]}
+          onToggle={() => toggleHistoryExpansion(currentExercise.name)}
+        />
+
         {/* Show current set we're working on for superset */}
         {supersetInfo && (
           <div className="mb-4 p-3 bg-purple-100 rounded-lg">
@@ -712,7 +784,7 @@ export default function WorkoutScreen() {
           </div>
         )}
         
-        <div className="space-y-4">
+        <div className="space-y-4 mt-4">
           {currentExercise.sets.map((set, setIndex) => {
             // For supersets, only show the current round's set
             const isCurrentSet = supersetInfo ? setIndex === currentSupersetRound - 1 : true;
