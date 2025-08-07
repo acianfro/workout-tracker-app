@@ -336,6 +336,139 @@ function calculateTotalWeight(exercises) {
   }, 0);
 }
 
+// NEW EXERCISE HISTORY FUNCTIONS
+
+// Get exercise history for a specific exercise name
+function getExerciseHistory(exerciseName, limit = 4) {
+  if (!exerciseName || !workouts.length) return [];
+  
+  // Filter workouts that contain the exercise and are completed
+  const workoutsWithExercise = workouts
+    .filter(workout => 
+      workout.status === 'completed' && 
+      workout.exercises && 
+      workout.exercises.some(ex => ex.name === exerciseName)
+    )
+    .slice(0, limit); // Get most recent instances (workouts are already ordered by date desc)
+  
+  // Extract exercise data from each workout
+  return workoutsWithExercise.map(workout => {
+    const exercise = workout.exercises.find(ex => ex.name === exerciseName);
+    return {
+      workoutId: workout.id,
+      date: workout.date || workout.createdAt,
+      exercise: exercise,
+      sets: exercise.sets || [],
+      isCardio: exercise.isCardio,
+      category: exercise.category
+    };
+  });
+}
+
+// Calculate exercise volume for comparison
+function calculateExerciseVolume(exerciseData) {
+  if (!exerciseData || !exerciseData.sets) return 0;
+  
+  const { sets, isCardio, category } = exerciseData;
+  
+  // For cardio exercises, don't calculate volume (return 0 for comparison purposes)
+  if (isCardio || category === 'cardio') {
+    return 0;
+  }
+  
+  return sets.reduce((total, set) => {
+    // Use actual values first, then fall back to planned values
+    const weight = parseFloat(set.actualWeight || set.weight) || 0;
+    const reps = parseInt(set.actualReps || set.reps) || 0;
+    
+    // For bodyweight exercises, don't multiply by weight if weight is 0 or "BW"
+    if (weight === 0 || set.weight === 'BW' || set.actualWeight === 'BW') {
+      return total + reps;
+    }
+    
+    return total + (weight * reps);
+  }, 0);
+}
+
+// Get progress indicator for an exercise based on history
+function getExerciseProgressIndicator(exerciseName) {
+  const history = getExerciseHistory(exerciseName, 2); // Get last 2 instances
+  
+  if (history.length < 2) {
+    return { type: 'first-time', icon: '✨', text: 'First Time!' };
+  }
+  
+  const currentVolume = calculateExerciseVolume(history[0]);
+  const previousVolume = calculateExerciseVolume(history[1]);
+  
+  // For cardio exercises, show neutral since we don't calculate volume
+  if (history[0].isCardio) {
+    return { type: 'neutral', icon: '➡️', text: 'Track Progress', color: 'text-gray-600' };
+  }
+  
+  // Calculate percentage change (with 5% tolerance for "maintaining")
+  const percentChange = previousVolume > 0 ? ((currentVolume - previousVolume) / previousVolume) * 100 : 0;
+  
+  if (percentChange > 5) {
+    return { 
+      type: 'progress', 
+      icon: '🟢 ↗️', 
+      text: 'Progressing', 
+      color: 'text-green-600',
+      change: `+${Math.round(percentChange)}%`
+    };
+  } else if (percentChange < -5) {
+    return { 
+      type: 'decline', 
+      icon: '🔴 ↘️', 
+      text: 'Declining', 
+      color: 'text-red-600',
+      change: `${Math.round(percentChange)}%`
+    };
+  } else {
+    return { 
+      type: 'maintaining', 
+      icon: '🟡 ➡️', 
+      text: 'Maintaining', 
+      color: 'text-yellow-600',
+      change: percentChange > 0 ? `+${Math.round(percentChange)}%` : `${Math.round(percentChange)}%`
+    };
+  }
+}
+
+// Format sets for display in history
+function formatSetsForDisplay(sets, isCardio = false) {
+  if (!sets || !sets.length) return 'No sets recorded';
+  
+  if (isCardio) {
+    return sets.map(set => {
+      const distance = set.actualDistance || set.distance || '0';
+      const duration = set.actualDuration || set.duration || '0';
+      return `${duration}min × ${distance}mi`;
+    }).join(', ');
+  }
+  
+  return sets.map(set => {
+    const weight = set.actualWeight || set.weight || '0';
+    const reps = set.actualReps || set.reps || '0';
+    return `${weight}×${reps}`;
+  }).join(', ');
+}
+
+// Get formatted exercise history for display
+function getFormattedExerciseHistory(exerciseName, limit = 4) {
+  const history = getExerciseHistory(exerciseName, limit);
+  
+  return history.map(entry => ({
+    date: entry.date,
+    dateString: entry.date ? new Date(entry.date.seconds ? entry.date.seconds * 1000 : entry.date).toLocaleDateString() : 'Unknown date',
+    sets: formatSetsForDisplay(entry.sets, entry.isCardio),
+    volume: calculateExerciseVolume(entry),
+    isCardio: entry.isCardio,
+    rawSets: entry.sets
+  }));
+}
+
   const value = {
     userProfile,
     measurements,
@@ -357,7 +490,13 @@ function calculateTotalWeight(exercises) {
     setCurrentWorkout,
     calculateAge,
     getLatestMeasurement,
-    calculateTotalWeight
+    calculateTotalWeight,
+    // New exercise history functions
+    getExerciseHistory,
+    calculateExerciseVolume,
+    getExerciseProgressIndicator,
+    formatSetsForDisplay,
+    getFormattedExerciseHistory
   };
 
   return (
