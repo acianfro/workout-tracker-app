@@ -174,11 +174,27 @@ async function deleteMeasurement(measurementId) {
     if (!currentUser) return;
 
     try {
-      const docRef = await addDoc(collection(db, 'workouts'), {
+      // Ensure date is properly formatted
+      const workoutToSave = {
         ...workoutData,
         userId: currentUser.uid,
         createdAt: new Date()
-      });
+      };
+
+      // Handle date conversion properly
+      if (workoutData.date) {
+        if (workoutData.date instanceof Date) {
+          workoutToSave.date = workoutData.date;
+        } else {
+          workoutToSave.date = new Date(workoutData.date);
+        }
+      } else {
+        workoutToSave.date = new Date();
+      }
+
+      console.log('Saving workout with date:', workoutToSave.date);
+      
+      const docRef = await addDoc(collection(db, 'workouts'), workoutToSave);
       return docRef.id;
     } catch (error) {
       console.error('Error saving workout:', error);
