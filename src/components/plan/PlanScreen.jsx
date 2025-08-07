@@ -75,16 +75,22 @@ function ExerciseHistory({ exerciseName, isExpanded, onToggle }) {
 }
 
 export default function PlanScreen() {
-  const { setCurrentWorkout, deleteExercise, saveScheduledWorkout } = useUserData();
+  const { setCurrentWorkout, deleteExercise, saveScheduledWorkout, currentWorkout } = useUserData();
   const navigate = useNavigate();
-  const [workoutPlan, setWorkoutPlan] = useState({
-    date: format(new Date(), 'yyyy-MM-dd'),
-    type: 'hypertrophy',
-    focusArea: 'Pull',
-    motivation: 7,
-    notes: '',
-    exercises: [],
-    supersets: []
+  const [workoutPlan, setWorkoutPlan] = useState(() => {
+    // Initialize with currentWorkout if it exists (from copy functionality)
+    if (currentWorkout && currentWorkout.exercises && !currentWorkout.startTime) {
+      return currentWorkout;
+    }
+    return {
+      date: format(new Date(), 'yyyy-MM-dd'),
+      type: 'hypertrophy',
+      focusArea: 'Pull',
+      motivation: 7,
+      notes: '',
+      exercises: [],
+      supersets: []
+    };
   });
   const [showExerciseSelection, setShowExerciseSelection] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState(null);
@@ -106,6 +112,14 @@ export default function PlanScreen() {
     description: '',
     instructions: ''
   });
+
+  // Clear the currentWorkout after we've used it for initialization
+  useEffect(() => {
+    if (currentWorkout && currentWorkout.exercises && !currentWorkout.startTime) {
+      // Clear the currentWorkout since we've used it for planning
+      setCurrentWorkout(null);
+    }
+  }, [currentWorkout, setCurrentWorkout]);
 
   // Toggle exercise history expansion
   const toggleHistoryExpansion = (exerciseName) => {
