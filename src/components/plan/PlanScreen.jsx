@@ -75,10 +75,11 @@ function ExerciseHistory({ exerciseName, isExpanded, onToggle }) {
 }
 
 // Progression Suggestions Component
-function ProgressionSuggestions({ exerciseName, onApplySuggestion }) {
+function ProgressionSuggestions({ exercise, onApplySuggestion }) {
   const { getExerciseProgressionSuggestions, userProfile, trackSuggestionUsage } = useUserData();
   
-  const progressionData = getExerciseProgressionSuggestions(exerciseName, userProfile);
+  // Use exercise.name directly instead of exerciseName prop
+  const progressionData = getExerciseProgressionSuggestions(exercise.name, userProfile);
   
   if (!progressionData.hasHistory) {
     return (
@@ -92,11 +93,12 @@ function ProgressionSuggestions({ exerciseName, onApplySuggestion }) {
   const { lastPerformance, suggestions } = progressionData;
 
   const handleApplySuggestion = async (suggestion) => {
-    onApplySuggestion(suggestion.sets);
+    // Apply to the specific exercise passed as prop
+    onApplySuggestion(exercise.id, suggestion.sets);
     
     // Track usage for learning
     await trackSuggestionUsage(
-      exerciseName, 
+      exercise.name, 
       suggestion.type, 
       true, 
       userProfile?.id
@@ -1100,9 +1102,29 @@ export default function PlanScreen() {
   if (selectedExercise) {
     const exercise = workoutPlan.exercises.find(ex => ex.id === selectedExercise);
     
-    const handleApplyProgression = (suggestedSets) => {
-      // Apply the suggested sets to the exercise
-      updateExerciseSets(exercise.id, suggestedSets.map(set => ({
+    // Safety check - if exercise not found, reset selectedExercise
+    if (!exercise) {
+      console.log('Exercise not found for ID:', selectedExercise, 'Resetting...');
+      setSelectedExercise(null);
+      return null;
+    }
+    
+    console.log('Showing exercise detail for:', exercise.name, 'ID:', exercise.id);
+    
+    // FIX: Create a specific handler that uses the correct exercise ID
+    const handleApplyProgression = (exerciseId, suggestedSets) => {
+      console.log('Applying progression to exercise ID:', exerciseId);
+      console.log('Exercise name should be:', exercise.name);
+      console.log('Suggested sets:', suggestedSets);
+      
+      // Double-check we're applying to the right exercise
+      if (exerciseId !== exercise.id) {
+        console.error('Exercise ID mismatch!', 'Expected:', exercise.id, 'Got:', exerciseId);
+        return;
+      }
+      
+      // Apply to the specific exercise ID passed from the component
+      updateExerciseSets(exerciseId, suggestedSets.map(set => ({
         ...set,
         completed: false
       })));
@@ -1122,9 +1144,9 @@ export default function PlanScreen() {
             onToggle={() => toggleHistoryExpansion(exercise.name)}
           />
 
-          {/* NEW: Progression Suggestions */}
+          {/* FIX: Pass the exercise object instead of just the name */}
           <ProgressionSuggestions 
-            exerciseName={exercise.name}
+            exercise={exercise}
             onApplySuggestion={handleApplyProgression}
           />
           
@@ -1232,7 +1254,10 @@ export default function PlanScreen() {
           <Button 
             variant="secondary" 
             className="w-full mt-3"
-            onClick={() => setSelectedExercise(null)}
+            onClick={() => {
+              console.log('Closing exercise detail view');
+              setSelectedExercise(null);
+            }}
           >
             Save Exercise
           </Button>
@@ -1394,7 +1419,10 @@ export default function PlanScreen() {
                   <div className="flex justify-between items-start">
                     <div 
                       className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
-                      onClick={() => setSelectedExercise(exercise.id)}
+                      onClick={() => {
+                        console.log('Clicking exercise with ID:', exercise.id, 'Name:', exercise.name);
+                        setSelectedExercise(exercise.id);
+                      }}
                     >
                       <div className="font-medium text-secondary-900 flex items-center">
                         {isInSuperset && (
