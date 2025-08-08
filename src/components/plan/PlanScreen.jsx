@@ -1112,26 +1112,26 @@ export default function PlanScreen() {
   }
 
   if (selectedExercise) {
-    const exercise = workoutPlan.exercises.find(ex => ex.id === selectedExercise);
+    const selectedExerciseData = workoutPlan.exercises.find(ex => ex.id === selectedExercise);
     
     // Safety check - if exercise not found, reset selectedExercise
-    if (!exercise) {
+    if (!selectedExerciseData) {
       console.log('Exercise not found for ID:', selectedExercise, 'Resetting...');
       setSelectedExercise(null);
       return null;
     }
     
-    console.log('Showing exercise detail for:', exercise.name, 'ID:', exercise.id);
+    console.log('Showing exercise detail for:', selectedExerciseData.name, 'ID:', selectedExerciseData.id);
     
     // FIX: Create a specific handler that uses the correct exercise ID
     const handleApplyProgression = (exerciseId, suggestedSets) => {
       console.log('Applying progression to exercise ID:', exerciseId);
-      console.log('Exercise name should be:', exercise.name);
+      console.log('Exercise name should be:', selectedExerciseData.name);
       console.log('Suggested sets:', suggestedSets);
       
       // Double-check we're applying to the right exercise
-      if (exerciseId !== exercise.id) {
-        console.error('Exercise ID mismatch!', 'Expected:', exercise.id, 'Got:', exerciseId);
+      if (exerciseId !== selectedExerciseData.id) {
+        console.error('Exercise ID mismatch!', 'Expected:', selectedExerciseData.id, 'Got:', exerciseId);
         return;
       }
       
@@ -1143,33 +1143,33 @@ export default function PlanScreen() {
     };
     
     return (
-      <div key={`exercise-detail-${exercise.id}`} className="p-4 max-w-md mx-auto">
+      <div key={`exercise-detail-${selectedExerciseData.id}`} className="p-4 max-w-md mx-auto">
         <Card className="p-6">
           <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
-            {exercise.name}
+            {selectedExerciseData.name}
           </h2>
           
           {/* Exercise History in Exercise Details View */}
           <ExerciseHistory 
-            key={`history-${exercise.id}`}
-            exerciseName={exercise.name}
-            isExpanded={expandedHistories[exercise.name]}
-            onToggle={() => toggleHistoryExpansion(exercise.name)}
+            key={`history-${selectedExerciseData.id}`}
+            exerciseName={selectedExerciseData.name}
+            isExpanded={expandedHistories[selectedExerciseData.name]}
+            onToggle={() => toggleHistoryExpansion(selectedExerciseData.name)}
           />
 
           {/* FIX: Pass the exercise object and add key for re-rendering */}
           <ProgressionSuggestions 
-            key={`progression-${exercise.id}`}
-            exercise={exercise}
+            key={`progression-${selectedExerciseData.id}`}
+            exercise={selectedExerciseData}
             onApplySuggestion={handleApplyProgression}
           />
           
-          {exercise.isCardio ? (
+          {selectedExerciseData.isCardio ? (
             // Cardio Exercise Planning
             <>
               <div className="text-sm text-secondary-600 mb-3 mt-4">Cardio Sets</div>
               <div className="space-y-3">
-                {exercise.sets.map((set, index) => (
+                {selectedExerciseData.sets.map((set, index) => (
                   <div key={index} className="p-3 border-2 border-secondary-200 rounded-lg space-y-3">
                     <div className="text-sm font-medium">Set {index + 1}:</div>
                     
@@ -1178,18 +1178,18 @@ export default function PlanScreen() {
                         placeholder="Distance (mi)"
                         value={set.distance}
                         onChange={(e) => {
-                          const newSets = [...exercise.sets];
+                          const newSets = [...selectedExerciseData.sets];
                           newSets[index].distance = e.target.value;
-                          updateExerciseSets(exercise.id, newSets);
+                          updateExerciseSets(selectedExerciseData.id, newSets);
                         }}
                       />
                       <Input
                         placeholder="Duration (min)"
                         value={set.duration}
                         onChange={(e) => {
-                          const newSets = [...exercise.sets];
+                          const newSets = [...selectedExerciseData.sets];
                           newSets[index].duration = e.target.value;
-                          updateExerciseSets(exercise.id, newSets);
+                          updateExerciseSets(selectedExerciseData.id, newSets);
                         }}
                       />
                     </div>
@@ -1199,18 +1199,18 @@ export default function PlanScreen() {
                         placeholder="Floors Climbed"
                         value={set.floorsClimbed}
                         onChange={(e) => {
-                          const newSets = [...exercise.sets];
+                          const newSets = [...selectedExerciseData.sets];
                           newSets[index].floorsClimbed = e.target.value;
-                          updateExerciseSets(exercise.id, newSets);
+                          updateExerciseSets(selectedExerciseData.id, newSets);
                         }}
                       />
                       <Input
                         placeholder="Weighted Vest (lbs)"
                         value={set.weightedVest}
                         onChange={(e) => {
-                          const newSets = [...exercise.sets];
+                          const newSets = [...selectedExerciseData.sets];
                           newSets[index].weightedVest = e.target.value;
-                          updateExerciseSets(exercise.id, newSets);
+                          updateExerciseSets(selectedExerciseData.id, newSets);
                         }}
                       />
                     </div>
@@ -1223,16 +1223,16 @@ export default function PlanScreen() {
             <>
               <div className="text-sm text-secondary-600 mb-3 mt-4">Planned Sets</div>
               <div className="space-y-3">
-                {exercise.sets.map((set, index) => (
+                {selectedExerciseData.sets.map((set, index) => (
                   <div key={index} className="flex items-center gap-3 p-3 border-2 border-secondary-200 rounded-lg">
                     <span className="text-sm font-medium">Set {index + 1}:</span>
                     <Input
                       placeholder="Weight"
                       value={set.weight}
                       onChange={(e) => {
-                        const newSets = [...exercise.sets];
+                        const newSets = [...selectedExerciseData.sets];
                         newSets[index].weight = e.target.value;
-                        updateExerciseSets(exercise.id, newSets);
+                        updateExerciseSets(selectedExerciseData.id, newSets);
                       }}
                       className="flex-1"
                     />
@@ -1240,9 +1240,9 @@ export default function PlanScreen() {
                       placeholder="Reps"
                       value={set.reps}
                       onChange={(e) => {
-                        const newSets = [...exercise.sets];
+                        const newSets = [...selectedExerciseData.sets];
                         newSets[index].reps = e.target.value;
-                        updateExerciseSets(exercise.id, newSets);
+                        updateExerciseSets(selectedExerciseData.id, newSets);
                       }}
                       className="flex-1"
                     />
@@ -1255,11 +1255,11 @@ export default function PlanScreen() {
           <Button 
             className="w-full mt-4"
             onClick={() => {
-              const newSet = exercise.isCardio 
+              const newSet = selectedExerciseData.isCardio 
                 ? { distance: '', floorsClimbed: '', weightedVest: '', duration: '', completed: false }
                 : { weight: '', reps: '', completed: false };
-              const newSets = [...exercise.sets, newSet];
-              updateExerciseSets(exercise.id, newSets);
+              const newSets = [...selectedExerciseData.sets, newSet];
+              updateExerciseSets(selectedExerciseData.id, newSets);
             }}
           >
             + Add Set
@@ -1269,7 +1269,7 @@ export default function PlanScreen() {
             variant="secondary" 
             className="w-full mt-3"
             onClick={() => {
-              console.log('Closing exercise detail view for:', exercise.name);
+              console.log('Closing exercise detail view for:', selectedExerciseData.name);
               setExpandedHistories({});
               setSelectedExercise(null);
             }}
@@ -1420,13 +1420,13 @@ export default function PlanScreen() {
           </div>
           
           <div className="space-y-3">
-            {workoutPlan.exercises.map((exercise, index) => {
-              const superset = workoutPlan.supersets.find(ss => ss.exerciseIds.includes(exercise.id));
+            {workoutPlan.exercises.map((planExercise, index) => {
+              const superset = workoutPlan.supersets.find(ss => ss.exerciseIds.includes(planExercise.id));
               const isInSuperset = !!superset;
               
               return (
                 <div 
-                  key={exercise.id} 
+                  key={planExercise.id} 
                   className={`border-2 rounded-lg bg-white p-3 ${
                     isInSuperset ? 'border-purple-300 bg-purple-50' : 'border-secondary-200'
                   }`}
@@ -1435,27 +1435,27 @@ export default function PlanScreen() {
                     <div 
                       className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
                       onClick={() => {
-                        console.log('Clicking exercise with ID:', exercise.id, 'Name:', exercise.name);
+                        console.log('Clicking exercise with ID:', planExercise.id, 'Name:', planExercise.name);
                         // Clear any expanded states when switching exercises
                         setExpandedHistories({});
-                        setSelectedExercise(exercise.id);
+                        setSelectedExercise(planExercise.id);
                       }}
                     >
                       <div className="font-medium text-secondary-900 flex items-center">
                         {isInSuperset && (
                           <span className="text-purple-600 mr-2 text-sm">
-                            🔗 {superset.exerciseIds.indexOf(exercise.id) + 1}.
+                            🔗 {superset.exerciseIds.indexOf(planExercise.id) + 1}.
                           </span>
                         )}
-                        {exercise.name}
-                        {exercise.isCardio && (
+                        {planExercise.name}
+                        {planExercise.isCardio && (
                           <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
                             Cardio
                           </span>
                         )}
                       </div>
                       <div className="text-sm text-secondary-600">
-                        {exercise.sets.length} sets planned • {exercise.category}
+                        {planExercise.sets.length} sets planned • {planExercise.category}
                         {isInSuperset && (
                           <span className="text-purple-600 ml-2">• {superset.name}</span>
                         )}
@@ -1465,7 +1465,7 @@ export default function PlanScreen() {
                     <div className="flex flex-col gap-1 ml-2">
                       <div className="flex gap-1">
                         <button
-                          onClick={() => moveExercise(exercise.id, 'up')}
+                          onClick={() => moveExercise(planExercise.id, 'up')}
                           disabled={index === 0}
                           className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
                           title="Move up"
@@ -1473,7 +1473,7 @@ export default function PlanScreen() {
                           <ArrowUp className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => moveExercise(exercise.id, 'down')}
+                          onClick={() => moveExercise(planExercise.id, 'down')}
                           disabled={index === workoutPlan.exercises.length - 1}
                           className="p-1 text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
                           title="Move down"
@@ -1484,7 +1484,7 @@ export default function PlanScreen() {
                       
                       {isInSuperset && (
                         <button
-                          onClick={() => removeExerciseFromSuperset(exercise.id)}
+                          onClick={() => removeExerciseFromSuperset(planExercise.id)}
                           className="p-1 text-purple-600 hover:bg-purple-100 rounded"
                           title="Remove from superset"
                         >
@@ -1495,7 +1495,7 @@ export default function PlanScreen() {
                       <Button 
                         size="sm" 
                         variant="secondary"
-                        onClick={() => removeExercise(exercise.id)}
+                        onClick={() => removeExercise(planExercise.id)}
                       >
                         Remove
                       </Button>
@@ -1504,9 +1504,9 @@ export default function PlanScreen() {
                   
                   {/* Exercise History in Planned Exercises View */}
                   <ExerciseHistory 
-                    exerciseName={exercise.name}
-                    isExpanded={expandedHistories[exercise.name]}
-                    onToggle={() => toggleHistoryExpansion(exercise.name)}
+                    exerciseName={planExercise.name}
+                    isExpanded={expandedHistories[planExercise.name]}
+                    onToggle={() => toggleHistoryExpansion(planExercise.name)}
                   />
                 </div>
               );
