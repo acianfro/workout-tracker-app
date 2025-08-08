@@ -102,7 +102,7 @@ function WorkoutProgressionIndicator({ exerciseName, currentSets }) {
             {isProgressing ? '📈 Progressing!' : '🎯 Beat Your Last'}
           </div>
           <div className="text-xs text-gray-600">
-            Last: {lastPerformance.weight > 0 ? `${lastPerformance.weight}lbs × ` : ''}{lastPerformance.reps} reps
+            Last: {lastPerformance.weight > 0 ? `${lastPerformance.weight}lbs × ` : ''}{lastPerformance.reps} reps ({lastPerformance.avgReps?.toFixed(1)} avg)
           </div>
         </div>
         <div className="text-right">
