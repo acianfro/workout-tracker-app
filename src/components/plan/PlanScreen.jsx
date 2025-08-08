@@ -74,6 +74,114 @@ function ExerciseHistory({ exerciseName, isExpanded, onToggle }) {
   );
 }
 
+// Progression Suggestions Component
+function ProgressionSuggestions({ exerciseName, onApplySuggestion }) {
+  const { getExerciseProgressionSuggestions, userProfile, trackSuggestionUsage } = useUserData();
+  
+  const progressionData = getExerciseProgressionSuggestions(exerciseName, userProfile);
+  
+  if (!progressionData.hasHistory) {
+    return (
+      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="text-sm text-blue-700 font-medium mb-1">💡 First Time Exercise</div>
+        <div className="text-xs text-blue-600">{progressionData.message}</div>
+      </div>
+    );
+  }
+
+  const { lastPerformance, suggestions } = progressionData;
+
+  const handleApplySuggestion = async (suggestion) => {
+    onApplySuggestion(suggestion.sets);
+    
+    // Track usage for learning
+    await trackSuggestionUsage(
+      exerciseName, 
+      suggestion.type, 
+      true, 
+      userProfile?.id
+    );
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* Last Performance Summary */}
+      <div className="p-3 bg-gray-50 rounded-lg">
+        <div className="text-sm font-medium text-gray-700 mb-1">Last Performance</div>
+        <div className="text-xs text-gray-600">
+          {lastPerformance.weight > 0 ? `${lastPerformance.weight}lbs × ` : ''}
+          {lastPerformance.reps} reps × {lastPerformance.sets} sets
+          {lastPerformance.allRepsCompleted && (
+            <span className="text-green-600 ml-2">✓ All reps completed</span>
+          )}
+        </div>
+      </div>
+
+      {/* Progression Suggestions */}
+      <div>
+        <div className="text-sm font-medium text-gray-700 mb-2">🎯 Smart Progressions</div>
+        <div className="space-y-2">
+          {suggestions.map((suggestion, index) => (
+            <div 
+              key={index}
+              className="p-3 bg-white border-2 border-blue-200 rounded-lg hover:border-blue-300 transition-colors"
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <div className="font-medium text-gray-900 text-sm">
+                    {suggestion.title}
+                  </div>
+                  <div className="text-blue-600 text-xs font-medium">
+                    {suggestion.description}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className={`text-xs font-medium ${
+                    suggestion.confidence >= 80 ? 'text-green-600' :
+                    suggestion.confidence >= 60 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {suggestion.confidence}% confidence
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-xs text-gray-500 mb-3">
+                {suggestion.rationale}
+              </div>
+              
+              {/* Preview of suggested sets */}
+              <div className="bg-gray-50 rounded p-2 mb-3">
+                <div className="text-xs text-gray-600 mb-1">Preview:</div>
+                <div className="flex gap-2 flex-wrap">
+                  {suggestion.sets.slice(0, 3).map((set, setIndex) => (
+                    <span key={setIndex} className="text-xs bg-white px-2 py-1 rounded border">
+                      {set.weight ? `${set.weight}×${set.reps}` : 
+                       set.distance ? `${set.distance}mi×${set.duration}min` : 
+                       `${set.reps} reps`}
+                    </span>
+                  ))}
+                  {suggestion.sets.length > 3 && (
+                    <span className="text-xs text-gray-500">+{suggestion.sets.length - 3} more</span>
+                  )}
+                </div>
+              </div>
+              
+              <Button
+                size="sm"
+                onClick={() => handleApplySuggestion(suggestion)}
+                className="w-full"
+                variant={suggestion.confidence >= 80 ? 'primary' : 'outline'}
+              >
+                Use This Progression
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PlanScreen() {
   const { setCurrentWorkout, deleteExercise, saveScheduledWorkout, currentWorkout } = useUserData();
   const navigate = useNavigate();
@@ -992,6 +1100,14 @@ export default function PlanScreen() {
   if (selectedExercise) {
     const exercise = workoutPlan.exercises.find(ex => ex.id === selectedExercise);
     
+    const handleApplyProgression = (suggestedSets) => {
+      // Apply the suggested sets to the exercise
+      updateExerciseSets(exercise.id, suggestedSets.map(set => ({
+        ...set,
+        completed: false
+      })));
+    };
+    
     return (
       <div className="p-4 max-w-md mx-auto">
         <Card className="p-6">
@@ -1004,6 +1120,12 @@ export default function PlanScreen() {
             exerciseName={exercise.name}
             isExpanded={expandedHistories[exercise.name]}
             onToggle={() => toggleHistoryExpansion(exercise.name)}
+          />
+
+          {/* NEW: Progression Suggestions */}
+          <ProgressionSuggestions 
+            exerciseName={exercise.name}
+            onApplySuggestion={handleApplyProgression}
           />
           
           {exercise.isCardio ? (
