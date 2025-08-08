@@ -485,6 +485,297 @@ function getFormattedExerciseHistory(exerciseName, limit = 4) {
   }));
 }
 
+// NEW PROGRESSION ENGINE FUNCTIONS
+
+// Exercise-specific progression rates
+const getExerciseProgressionRates = (exerciseName, category, userExperience = 'intermediate') => {
+  const baseRates = {
+    // Compound movements - slower, more sustainable progression
+    compound: {
+      beginner: { weight: 5, reps: 2, sets: 0.5, frequency: 'weekly' },
+      intermediate: { weight: 2.5, reps: 1, sets: 0.25, frequency: 'weekly' },
+      advanced: { weight: 2.5, reps: 1, sets: 0.25, frequency: 'bi-weekly' }
+    },
+    // Isolation movements - can progress more frequently  
+    isolation: {
+      beginner: { weight: 2.5, reps: 2, sets: 0.5, frequency: 'weekly' },
+      intermediate: { weight: 2.5, reps: 1, sets: 0.25, frequency: 'weekly' },
+      advanced: { weight: 1.25, reps: 1, sets: 0.25, frequency: 'bi-weekly' }
+    },
+    // Bodyweight exercises
+    bodyweight: {
+      beginner: { weight: 0, reps: 2, sets: 0.5, frequency: 'weekly' },
+      intermediate: { weight: 0, reps: 1, sets: 0.25, frequency: 'weekly' },
+      advanced: { weight: 0, reps: 1, sets: 0.25, frequency: 'bi-weekly' }
+    },
+    // Cardio exercises - different progression logic
+    cardio: {
+      beginner: { duration: 2, distance: 0.1, frequency: 'weekly' },
+      intermediate: { duration: 1, distance: 0.05, frequency: 'weekly' },
+      advanced: { duration: 1, distance: 0.05, frequency: 'bi-weekly' }
+    }
+  };
+
+  return baseRates[category]?.[userExperience] || baseRates.isolation[userExperience];
+};
+
+// Calculate exercise progression suggestions
+function getExerciseProgressionSuggestions(exerciseName, userProfile = {}) {
+  const history = getExerciseHistory(exerciseName, 2);
+  
+  if (history.length === 0) {
+    return {
+      hasHistory: false,
+      message: "No previous data - start with comfortable weight/reps"
+    };
+  }
+
+  const lastWorkout = history[0];
+  const exercise = lastWorkout.exercise;
+  const userExperience = userProfile.trainingExperience || 'intermediate';
+  const userGoal = userProfile.primaryGoal || 'hypertrophy';
+  
+  // Handle cardio exercises differently
+  if (exercise.isCardio || exercise.category === 'cardio') {
+    return generateCardioProgressions(exercise, userExperience);
+  }
+
+  const progressionRates = getExerciseProgressionRates(
+    exerciseName, 
+    exercise.category || 'isolation', 
+    userExperience
+  );
+
+  // Analyze last performance
+  const lastSets = exercise.sets || [];
+  if (lastSets.length === 0) {
+    return {
+      hasHistory: false,
+      message: "No set data available"
+    };
+  }
+
+  // Calculate baseline from last workout
+  const completedSets = lastSets.filter(set => set.completed);
+  const avgWeight = completedSets.length > 0 
+    ? completedSets.reduce((sum, set) => {
+        const weight = parseFloat(set.actualWeight || set.weight) || 0;
+        return sum + weight;
+      }, 0) / completedSets.length
+    : parseFloat(lastSets[0].weight) || 0;
+
+  const avgReps = completedSets.length > 0
+    ? completedSets.reduce((sum, set) => {
+        const reps = parseInt(set.actualReps || set.reps) || 0;
+        return sum + reps;
+      }, 0) / completedSets.length
+    : parseInt(lastSets[0].reps) || 0;
+
+  const currentSets = lastSets.length;
+
+  // Check if user hit all target reps (indicator of readiness to progress)
+  const hitAllReps = completedSets.length > 0 && completedSets.every(set => {
+    const actualReps = parseInt(set.actualReps || set.reps) || 0;
+    const plannedReps = parseInt(set.reps) || 0;
+    return actualReps >= plannedReps;
+  });
+
+  // Generate three progression options
+  const suggestions = [];
+
+  // Option 1: Weight progression (if they hit all reps)
+  if (avgWeight > 0 && hitAllReps) {
+    const newWeight = avgWeight + progressionRates.weight;
+    suggestions.push({
+      type: 'weight',
+      title: 'Increase Weight',
+      description: `+${progressionRates.weight}lbs`,
+      sets: lastSets.map(set => ({
+        weight: newWeight.toString(),
+        reps: set.reps || set.actualReps || avgReps.toString()
+      })),
+      confidence: calculateConfidence('weight', hitAllReps, history),
+      rationale: 'You hit all target reps - ready for more weight!'
+    });
+  }
+
+  // Option 2: Rep progression  
+  const newReps = Math.ceil(avgReps + progressionRates.reps);
+  suggestions.push({
+    type: 'reps',
+    title: 'Increase Reps',
+    description: `+${Math.ceil(progressionRates.reps)} reps`,
+    sets: lastSets.map(set => ({
+      weight: set.actualWeight || set.weight || avgWeight.toString(),
+      reps: newReps.toString()
+    })),
+    confidence: calculateConfidence('reps', hitAllReps, history),
+    rationale: 'Build endurance and volume with more reps'
+  });
+
+  // Option 3: Set progression (if current sets < 5)
+  if (currentSets < 5) {
+    const newSetCount = Math.min(currentSets + Math.ceil(progressionRates.sets), 5);
+    const newSetsArray = [...lastSets];
+    
+    // Add additional sets based on last set performance
+    for (let i = currentSets; i < newSetCount; i++) {
+      newSetsArray.push({
+        weight: (avgWeight * 0.9).toString(), // Slightly reduced weight for additional sets
+        reps: Math.max(avgReps - 1, 1).toString() // Slightly reduced reps
+      });
+    }
+
+    suggestions.push({
+      type: 'sets',
+      title: 'Add Sets',
+      description: `${currentSets} → ${newSetCount} sets`,
+      sets: newSetsArray,
+      confidence: calculateConfidence('sets', hitAllReps, history),
+      rationale: 'Increase training volume with additional sets'
+    });
+  }
+
+  // Goal-specific adjustments
+  adjustSuggestionsForGoal(suggestions, userGoal);
+
+  return {
+    hasHistory: true,
+    lastPerformance: {
+      weight: avgWeight,
+      reps: avgReps,
+      sets: currentSets,
+      allRepsCompleted: hitAllReps
+    },
+    suggestions: suggestions.slice(0, 3) // Limit to 3 options
+  };
+}
+
+// Generate cardio-specific progressions
+function generateCardioProgressions(exercise, userExperience) {
+  const lastSets = exercise.sets || [];
+  if (lastSets.length === 0) return { hasHistory: false };
+
+  const lastSet = lastSets[0];
+  const currentDistance = parseFloat(lastSet.actualDistance || lastSet.distance) || 0;
+  const currentDuration = parseFloat(lastSet.actualDuration || lastSet.duration) || 0;
+
+  const suggestions = [];
+
+  // Distance progression
+  if (currentDistance > 0) {
+    suggestions.push({
+      type: 'distance',
+      title: 'Increase Distance',
+      description: `+0.1 miles`,
+      sets: lastSets.map(set => ({
+        distance: (currentDistance + 0.1).toString(),
+        duration: set.actualDuration || set.duration || currentDuration.toString()
+      })),
+      confidence: 75,
+      rationale: 'Build endurance with increased distance'
+    });
+  }
+
+  // Duration progression
+  if (currentDuration > 0) {
+    suggestions.push({
+      type: 'duration',
+      title: 'Increase Duration',
+      description: `+2 minutes`,
+      sets: lastSets.map(set => ({
+        distance: set.actualDistance || set.distance || currentDistance.toString(),
+        duration: (currentDuration + 2).toString()
+      })),
+      confidence: 80,
+      rationale: 'Improve cardiovascular capacity'
+    });
+  }
+
+  return {
+    hasHistory: true,
+    lastPerformance: { distance: currentDistance, duration: currentDuration },
+    suggestions: suggestions.slice(0, 2)
+  };
+}
+
+// Calculate confidence score for suggestions
+function calculateConfidence(progressionType, hitAllReps, history) {
+  let baseConfidence = 60;
+
+  // Boost confidence if user hit all reps
+  if (hitAllReps) baseConfidence += 20;
+
+  // Boost confidence based on consistency
+  if (history.length >= 2) {
+    const trend = calculateVolumeVelocity(history);
+    if (trend > 0) baseConfidence += 15; // Progressing
+  }
+
+  // Adjust based on progression type
+  switch (progressionType) {
+    case 'weight':
+      return hitAllReps ? Math.min(baseConfidence + 10, 95) : Math.max(baseConfidence - 20, 40);
+    case 'reps':
+      return Math.min(baseConfidence + 5, 90);
+    case 'sets':
+      return Math.min(baseConfidence, 85);
+    default:
+      return baseConfidence;
+  }
+}
+
+// Adjust suggestions based on user goal
+function adjustSuggestionsForGoal(suggestions, goal) {
+  suggestions.forEach(suggestion => {
+    switch (goal) {
+      case 'strength':
+        if (suggestion.type === 'weight') suggestion.confidence += 10;
+        if (suggestion.type === 'reps') suggestion.confidence -= 5;
+        break;
+      case 'hypertrophy':
+        if (suggestion.type === 'reps') suggestion.confidence += 5;
+        if (suggestion.type === 'sets') suggestion.confidence += 5;
+        break;
+      case 'endurance':
+        if (suggestion.type === 'reps') suggestion.confidence += 10;
+        if (suggestion.type === 'weight') suggestion.confidence -= 10;
+        break;
+    }
+    
+    // Ensure confidence stays within bounds
+    suggestion.confidence = Math.max(30, Math.min(95, suggestion.confidence));
+  });
+}
+
+// Calculate volume velocity (rate of change)
+function calculateVolumeVelocity(history) {
+  if (history.length < 2) return 0;
+  
+  const recent = calculateExerciseVolume(history[0]);
+  const previous = calculateExerciseVolume(history[1]);
+  
+  if (previous === 0) return 0;
+  return ((recent - previous) / previous) * 100;
+}
+
+// Track suggestion usage for learning
+async function trackSuggestionUsage(exerciseName, suggestionType, wasUsed, userId) {
+  if (!userId) return;
+  
+  try {
+    await addDoc(collection(db, 'suggestionTracking'), {
+      userId,
+      exerciseName,
+      suggestionType,
+      wasUsed,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error tracking suggestion usage:', error);
+  }
+}
+
   const value = {
     userProfile,
     measurements,
@@ -507,12 +798,15 @@ function getFormattedExerciseHistory(exerciseName, limit = 4) {
     calculateAge,
     getLatestMeasurement,
     calculateTotalWeight,
-    // New exercise history functions
+    // Exercise history functions
     getExerciseHistory,
     calculateExerciseVolume,
     getExerciseProgressIndicator,
     formatSetsForDisplay,
-    getFormattedExerciseHistory
+    getFormattedExerciseHistory,
+    // NEW: Progression suggestion functions
+    getExerciseProgressionSuggestions,
+    trackSuggestionUsage
   };
 
   return (
