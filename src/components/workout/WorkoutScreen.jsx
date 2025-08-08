@@ -65,6 +65,64 @@ function WorkoutExerciseHistory({ exerciseName, isExpanded, onToggle }) {
   );
 }
 
+// Workout Progression Indicator Component
+function WorkoutProgressionIndicator({ exerciseName, currentSets }) {
+  const { getExerciseProgressionSuggestions, userProfile } = useUserData();
+  
+  const progressionData = getExerciseProgressionSuggestions(exerciseName, userProfile);
+  
+  if (!progressionData.hasHistory) {
+    return (
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="text-sm text-blue-700 font-medium">💡 First time doing this exercise!</div>
+        <div className="text-xs text-blue-600">Focus on form and find your baseline</div>
+      </div>
+    );
+  }
+
+  const { lastPerformance, suggestions } = progressionData;
+  
+  // Find the best matching suggestion based on current plan
+  const currentAvgWeight = currentSets.length > 0 
+    ? currentSets.reduce((sum, set) => sum + (parseFloat(set.weight) || 0), 0) / currentSets.length 
+    : 0;
+  const currentAvgReps = currentSets.length > 0
+    ? currentSets.reduce((sum, set) => sum + (parseInt(set.reps) || 0), 0) / currentSets.length
+    : 0;
+
+  // Determine if user is progressing
+  const isProgressing = currentAvgWeight > lastPerformance.weight || 
+                       (currentAvgWeight === lastPerformance.weight && currentAvgReps > lastPerformance.reps);
+
+  return (
+    <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <div className="text-sm font-medium text-gray-800">
+            {isProgressing ? '📈 Progressing!' : '🎯 Beat Your Last'}
+          </div>
+          <div className="text-xs text-gray-600">
+            Last: {lastPerformance.weight > 0 ? `${lastPerformance.weight}lbs × ` : ''}{lastPerformance.reps} reps
+          </div>
+        </div>
+        <div className="text-right">
+          {isProgressing && (
+            <div className="text-xs font-medium text-green-600">
+              ✨ New territory!
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {suggestions.length > 0 && (
+        <div className="text-xs text-purple-700">
+          💪 Suggested next time: {suggestions[0].description}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WorkoutScreen() {
   const { currentWorkout, setCurrentWorkout, saveWorkout, calculateTotalWeight } = useUserData();
   const navigate = useNavigate();
@@ -773,6 +831,12 @@ export default function WorkoutScreen() {
           exerciseName={currentExercise.name}
           isExpanded={expandedHistories[currentExercise.name]}
           onToggle={() => toggleHistoryExpansion(currentExercise.name)}
+        />
+
+        {/* NEW: Progression Indicator */}
+        <WorkoutProgressionIndicator 
+          exerciseName={currentExercise.name}
+          currentSets={currentExercise.sets}
         />
 
         {/* Show current set we're working on for superset */}
