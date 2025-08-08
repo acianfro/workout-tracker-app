@@ -78,8 +78,19 @@ function ExerciseHistory({ exerciseName, isExpanded, onToggle }) {
 function ProgressionSuggestions({ exercise, onApplySuggestion }) {
   const { getExerciseProgressionSuggestions, userProfile, trackSuggestionUsage } = useUserData();
   
-  // Use exercise.name directly instead of exerciseName prop
-  const progressionData = getExerciseProgressionSuggestions(exercise.name, userProfile);
+  // Use useEffect to ensure we get fresh data when exercise changes
+  const [progressionData, setProgressionData] = useState(null);
+  
+  useEffect(() => {
+    console.log('ProgressionSuggestions: Exercise changed to:', exercise.name, 'ID:', exercise.id);
+    const data = getExerciseProgressionSuggestions(exercise.name, userProfile);
+    console.log('ProgressionSuggestions: Got progression data:', data);
+    setProgressionData(data);
+  }, [exercise.id, exercise.name, userProfile]);
+  
+  if (!progressionData) {
+    return <div className="mt-3 p-3 bg-gray-50 rounded-lg">Loading suggestions...</div>;
+  }
   
   if (!progressionData.hasHistory) {
     return (
@@ -93,6 +104,7 @@ function ProgressionSuggestions({ exercise, onApplySuggestion }) {
   const { lastPerformance, suggestions } = progressionData;
 
   const handleApplySuggestion = async (suggestion) => {
+    console.log('ProgressionSuggestions: Applying suggestion for exercise:', exercise.name, 'ID:', exercise.id);
     // Apply to the specific exercise passed as prop
     onApplySuggestion(exercise.id, suggestion.sets);
     
@@ -1131,7 +1143,7 @@ export default function PlanScreen() {
     };
     
     return (
-      <div className="p-4 max-w-md mx-auto">
+      <div key={`exercise-detail-${exercise.id}`} className="p-4 max-w-md mx-auto">
         <Card className="p-6">
           <h2 className="text-xl font-bold text-secondary-900 mb-4 text-center">
             {exercise.name}
@@ -1139,13 +1151,15 @@ export default function PlanScreen() {
           
           {/* Exercise History in Exercise Details View */}
           <ExerciseHistory 
+            key={`history-${exercise.id}`}
             exerciseName={exercise.name}
             isExpanded={expandedHistories[exercise.name]}
             onToggle={() => toggleHistoryExpansion(exercise.name)}
           />
 
-          {/* FIX: Pass the exercise object instead of just the name */}
+          {/* FIX: Pass the exercise object and add key for re-rendering */}
           <ProgressionSuggestions 
+            key={`progression-${exercise.id}`}
             exercise={exercise}
             onApplySuggestion={handleApplyProgression}
           />
@@ -1255,7 +1269,8 @@ export default function PlanScreen() {
             variant="secondary" 
             className="w-full mt-3"
             onClick={() => {
-              console.log('Closing exercise detail view');
+              console.log('Closing exercise detail view for:', exercise.name);
+              setExpandedHistories({});
               setSelectedExercise(null);
             }}
           >
@@ -1421,6 +1436,8 @@ export default function PlanScreen() {
                       className="flex-1 cursor-pointer hover:bg-gray-50 p-2 rounded"
                       onClick={() => {
                         console.log('Clicking exercise with ID:', exercise.id, 'Name:', exercise.name);
+                        // Clear any expanded states when switching exercises
+                        setExpandedHistories({});
                         setSelectedExercise(exercise.id);
                       }}
                     >
