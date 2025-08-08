@@ -532,8 +532,12 @@ function getExerciseProgressionSuggestions(exerciseName, userProfile = {}) {
 
   const lastWorkout = history[0];
   const exercise = lastWorkout.exercise;
-  const userExperience = userProfile.trainingExperience || 'intermediate';
-  const userGoal = userProfile.primaryGoal || 'hypertrophy';
+  const userExperience = userProfile?.trainingExperience || 'intermediate';
+  const userGoal = userProfile?.primaryGoal || 'hypertrophy';
+  
+  console.log('Progression Debug - Exercise Name:', exerciseName);
+  console.log('Progression Debug - History:', history);
+  console.log('Progression Debug - Last Exercise:', exercise);
   
   // Handle cardio exercises differently
   if (exercise.isCardio || exercise.category === 'cardio') {
@@ -546,8 +550,10 @@ function getExerciseProgressionSuggestions(exerciseName, userProfile = {}) {
     userExperience
   );
 
-  // Analyze last performance
+  // Analyze last performance - FIX THE DATA PARSING
   const lastSets = exercise.sets || [];
+  console.log('Progression Debug - Last Sets:', lastSets);
+  
   if (lastSets.length === 0) {
     return {
       hasHistory: false,
@@ -555,74 +561,96 @@ function getExerciseProgressionSuggestions(exerciseName, userProfile = {}) {
     };
   }
 
-  // Calculate baseline from last workout
-  const completedSets = lastSets.filter(set => set.completed);
-  const avgWeight = completedSets.length > 0 
-    ? completedSets.reduce((sum, set) => {
-        const weight = parseFloat(set.actualWeight || set.weight) || 0;
-        return sum + weight;
-      }, 0) / completedSets.length
-    : parseFloat(lastSets[0].weight) || 0;
+  // IMPROVED: Better parsing of actual vs planned values
+  const validSets = lastSets.filter(set => {
+    const weight = parseFloat(set.actualWeight || set.weight || 0);
+    const reps = parseInt(set.actualReps || set.reps || 0);
+    return weight > 0 && reps > 0;
+  });
 
-  const avgReps = completedSets.length > 0
-    ? completedSets.reduce((sum, set) => {
-        const reps = parseInt(set.actualReps || set.reps) || 0;
-        return sum + reps;
-      }, 0) / completedSets.length
-    : parseInt(lastSets[0].reps) || 0;
+  console.log('Progression Debug - Valid Sets:', validSets);
 
-  const currentSets = lastSets.length;
+  if (validSets.length === 0) {
+    return {
+      hasHistory: false,
+      message: "No valid set data found"
+    };
+  }
+
+  // Calculate averages from valid sets
+  const weights = validSets.map(set => parseFloat(set.actualWeight || set.weight || 0));
+  const reps = validSets.map(set => parseInt(set.actualReps || set.reps || 0));
+  
+  const avgWeight = weights.reduce((sum, w) => sum + w, 0) / weights.length;
+  const maxWeight = Math.max(...weights);
+  const avgReps = reps.reduce((sum, r) => sum + r, 0) / reps.length;
+  const maxReps = Math.max(...reps);
+  const currentSets = validSets.length;
+
+  console.log('Progression Debug - Calculated Values:', {
+    avgWeight, maxWeight, avgReps, maxReps, currentSets
+  });
 
   // Check if user hit all target reps (indicator of readiness to progress)
-  const hitAllReps = completedSets.length > 0 && completedSets.every(set => {
-    const actualReps = parseInt(set.actualReps || set.reps) || 0;
-    const plannedReps = parseInt(set.reps) || 0;
-    return actualReps >= plannedReps;
+  const hitAllReps = validSets.every(set => {
+    const actualReps = parseInt(set.actualReps || set.reps || 0);
+    const plannedReps = parseInt(set.reps || set.actualReps || 0);
+    return actualReps >= (plannedReps * 0.9); // Allow 10% tolerance
   });
+
+  console.log('Progression Debug - Hit All Reps:', hitAllReps);
 
   // Generate three progression options
   const suggestions = [];
 
-  // Option 1: Weight progression (if they hit all reps)
+  // Option 1: Weight progression (if they hit most reps and weight > 0)
   if (avgWeight > 0 && hitAllReps) {
-    const newWeight = avgWeight + progressionRates.weight;
+    const newWeight = maxWeight + progressionRates.weight; // Use max weight as baseline
     suggestions.push({
       type: 'weight',
       title: 'Increase Weight',
-      description: `+${progressionRates.weight}lbs`,
-      sets: lastSets.map(set => ({
+      description: `+${progressionRates.weight}lbs (${maxWeight}→${newWeight})`,
+      sets: Array(currentSets).fill(null).map(() => ({
         weight: newWeight.toString(),
-        reps: set.reps || set.actualReps || avgReps.toString()
+        reps: Math.round(avgReps).toString() // Use average reps
       })),
       confidence: calculateConfidence('weight', hitAllReps, history),
-      rationale: 'You hit all target reps - ready for more weight!'
+      rationale: `You hit your target reps at ${maxWeight}lbs - ready for more weight!`
     });
   }
 
-  // Option 2: Rep progression  
-  const newReps = Math.ceil(avgReps + progressionRates.reps);
+  // Option 2: Rep progression (always available)
+  const newReps = Math.ceil(maxReps + progressionRates.reps); // Use max reps as baseline
   suggestions.push({
     type: 'reps',
     title: 'Increase Reps',
-    description: `+${Math.ceil(progressionRates.reps)} reps`,
-    sets: lastSets.map(set => ({
-      weight: set.actualWeight || set.weight || avgWeight.toString(),
+    description: `+${Math.ceil(progressionRates.reps)} reps (${maxReps}→${newReps})`,
+    sets: Array(currentSets).fill(null).map(() => ({
+      weight: maxWeight.toString(), // Keep same weight
       reps: newReps.toString()
     })),
     confidence: calculateConfidence('reps', hitAllReps, history),
-    rationale: 'Build endurance and volume with more reps'
+    rationale: `Build volume by adding ${Math.ceil(progressionRates.reps)} more reps per set`
   });
 
   // Option 3: Set progression (if current sets < 5)
   if (currentSets < 5) {
-    const newSetCount = Math.min(currentSets + Math.ceil(progressionRates.sets), 5);
-    const newSetsArray = [...lastSets];
+    const newSetCount = Math.min(currentSets + Math.ceil(progressionRates.sets || 1), 5);
+    const newSetsArray = [];
     
-    // Add additional sets based on last set performance
+    // Keep existing sets
+    for (let i = 0; i < currentSets; i++) {
+      newSetsArray.push({
+        weight: maxWeight.toString(),
+        reps: Math.round(avgReps).toString()
+      });
+    }
+    
+    // Add new sets with slightly reduced intensity
     for (let i = currentSets; i < newSetCount; i++) {
       newSetsArray.push({
-        weight: (avgWeight * 0.9).toString(), // Slightly reduced weight for additional sets
-        reps: Math.max(avgReps - 1, 1).toString() // Slightly reduced reps
+        weight: (maxWeight * 0.95).toString(), // 5% reduction for additional sets
+        reps: Math.max(Math.round(avgReps) - 1, 1).toString()
       });
     }
 
@@ -632,18 +660,21 @@ function getExerciseProgressionSuggestions(exerciseName, userProfile = {}) {
       description: `${currentSets} → ${newSetCount} sets`,
       sets: newSetsArray,
       confidence: calculateConfidence('sets', hitAllReps, history),
-      rationale: 'Increase training volume with additional sets'
+      rationale: `Increase training volume with ${newSetCount - currentSets} additional set${newSetCount - currentSets > 1 ? 's' : ''}`
     });
   }
 
   // Goal-specific adjustments
   adjustSuggestionsForGoal(suggestions, userGoal);
 
+  console.log('Progression Debug - Final Suggestions:', suggestions);
+
   return {
     hasHistory: true,
     lastPerformance: {
-      weight: avgWeight,
-      reps: avgReps,
+      weight: maxWeight,
+      reps: maxReps,
+      avgReps: avgReps,
       sets: currentSets,
       allRepsCompleted: hitAllReps
     },
