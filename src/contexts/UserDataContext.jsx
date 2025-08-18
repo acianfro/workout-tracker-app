@@ -174,25 +174,41 @@ async function deleteMeasurement(measurementId) {
     if (!currentUser) return;
 
     try {
-      // Ensure date is properly formatted
+      // ENHANCED DATE HANDLING to prevent timezone shifts
       const workoutToSave = {
         ...workoutData,
         userId: currentUser.uid,
         createdAt: new Date()
       };
 
-      // Handle date conversion properly
+      // Handle date conversion properly to prevent timezone issues
       if (workoutData.date) {
-        if (workoutData.date instanceof Date) {
+        if (typeof workoutData.date === 'string') {
+          // If it's a date string (like "2025-08-18"), create date at noon local time
+          // This prevents timezone shifts when converting to UTC
+          const dateParts = workoutData.date.split('-');
+          if (dateParts.length === 3) {
+            const year = parseInt(dateParts[0]);
+            const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+            const day = parseInt(dateParts[2]);
+            workoutToSave.date = new Date(year, month, day, 12, 0, 0, 0); // Noon local time
+          } else {
+            workoutToSave.date = new Date(workoutData.date);
+          }
+        } else if (workoutData.date instanceof Date) {
           workoutToSave.date = workoutData.date;
         } else {
-          workoutToSave.date = new Date(workoutData.date);
+          workoutToSave.date = new Date();
         }
       } else {
         workoutToSave.date = new Date();
       }
 
-      console.log('Saving workout with date:', workoutToSave.date);
+      console.log('Saving workout with date:', {
+        originalDate: workoutData.date,
+        convertedDate: workoutToSave.date,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      });
       
       const docRef = await addDoc(collection(db, 'workouts'), workoutToSave);
       return docRef.id;
