@@ -365,7 +365,18 @@ function getExerciseHistory(exerciseName, limit = 4) {
       workout.exercises && 
       workout.exercises.some(ex => ex.name === exerciseName)
     )
-    .slice(0, limit); // Get most recent instances (workouts are already ordered by date desc)
+    // FIX: Proper date sorting - most recent first
+    .sort((a, b) => {
+      const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+      const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+      return dateB - dateA; // Most recent first (descending order)
+    })
+    .slice(0, limit); // Get most recent instances after sorting
+  
+  console.log('Exercise History Debug - Filtered and sorted workouts:', workoutsWithExercise.map(w => ({
+    date: w.date?.toDate ? w.date.toDate() : new Date(w.date),
+    exerciseName: w.exercises?.find(ex => ex.name === exerciseName)?.name
+  })));
   
   // Extract exercise data from each workout
   return workoutsWithExercise.map(workout => {
@@ -414,8 +425,20 @@ function getExerciseProgressIndicator(exerciseName) {
     return { type: 'first-time', icon: '✨', text: 'First Time!' };
   }
   
-  const currentVolume = calculateExerciseVolume(history[0]);
+  // Since history is now properly sorted (most recent first), we need:
+  // history[0] = most recent workout
+  // history[1] = previous workout
+  const mostRecentVolume = calculateExerciseVolume(history[0]);
   const previousVolume = calculateExerciseVolume(history[1]);
+  
+  console.log('Progress Indicator Debug:', {
+    exerciseName,
+    mostRecentDate: history[0].date,
+    mostRecentVolume,
+    previousDate: history[1].date, 
+    previousVolume,
+    comparison: mostRecentVolume > previousVolume ? 'progressing' : mostRecentVolume < previousVolume ? 'declining' : 'maintaining'
+  });
   
   // For cardio exercises, show neutral since we don't calculate volume
   if (history[0].isCardio) {
@@ -423,7 +446,7 @@ function getExerciseProgressIndicator(exerciseName) {
   }
   
   // Calculate percentage change (with 5% tolerance for "maintaining")
-  const percentChange = previousVolume > 0 ? ((currentVolume - previousVolume) / previousVolume) * 100 : 0;
+  const percentChange = previousVolume > 0 ? ((mostRecentVolume - previousVolume) / previousVolume) * 100 : 0;
   
   if (percentChange > 5) {
     return { 
@@ -475,14 +498,20 @@ function formatSetsForDisplay(sets, isCardio = false) {
 function getFormattedExerciseHistory(exerciseName, limit = 4) {
   const history = getExerciseHistory(exerciseName, limit);
   
-  return history.map(entry => ({
-    date: entry.date,
-    dateString: entry.date ? new Date(entry.date.seconds ? entry.date.seconds * 1000 : entry.date).toLocaleDateString() : 'Unknown date',
-    sets: formatSetsForDisplay(entry.sets, entry.isCardio),
-    volume: calculateExerciseVolume(entry),
-    isCardio: entry.isCardio,
-    rawSets: entry.sets
-  }));
+  return history.map(entry => {
+    const displayDate = entry.date?.toDate ? entry.date.toDate() : new Date(entry.date);
+    
+    return {
+      date: entry.date,
+      dateString: displayDate.toLocaleDateString(),
+      sets: formatSetsForDisplay(entry.sets, entry.isCardio),
+      volume: calculateExerciseVolume(entry),
+      isCardio: entry.isCardio,
+      rawSets: entry.sets,
+      // Add for debugging
+      debugDate: displayDate.toISOString()
+    };
+  });
 }
 
 // NEW PROGRESSION ENGINE FUNCTIONS
