@@ -589,8 +589,32 @@ export default function PlanScreen() {
       return;
     }
     
+    // FIX: Ensure proper date conversion when starting workout
+    let workoutDate;
+    if (typeof workoutPlan.date === 'string') {
+      // Convert "2025-08-18" to proper Date object at noon local time
+      const dateParts = workoutPlan.date.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+        const day = parseInt(dateParts[2]);
+        workoutDate = new Date(year, month, day, 12, 0, 0, 0);
+      } else {
+        workoutDate = new Date(workoutPlan.date);
+      }
+    } else {
+      workoutDate = workoutPlan.date || new Date();
+    }
+    
+    console.log('Starting workout with date:', {
+      originalPlanDate: workoutPlan.date,
+      convertedWorkoutDate: workoutDate,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
+    
     setCurrentWorkout({
       ...workoutPlan,
+      date: workoutDate, // Use the properly converted date
       startTime: new Date(),
       status: 'active'
     });
