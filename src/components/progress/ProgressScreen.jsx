@@ -32,7 +32,7 @@ export default function ProgressScreen() {
     }
   };
 
-  // Helper function to safely convert dates
+  // Helper function to safely convert dates (ENHANCED)
   const getDisplayDate = (dateValue) => {
     if (!dateValue) return new Date();
     
@@ -49,6 +49,13 @@ export default function ProgressScreen() {
       console.warn('Invalid date encountered:', dateValue);
       return new Date();
     }
+    
+    console.log('Date conversion:', {
+      input: dateValue,
+      output: date,
+      formatted: format(date, 'MMM d, yyyy'),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    });
     
     return date;
   };
